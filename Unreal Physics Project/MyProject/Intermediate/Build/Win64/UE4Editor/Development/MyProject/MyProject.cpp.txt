@@ -1,0 +1,2 @@
+D:\Unreal Physics Project\MyProject\Intermediate\Build\Win64\UE4Editor\Development\MyProject\Definitions.MyProject.h
+D:\Unreal Physics Project\MyProject\Source\MyProject\MyProject.h

@@ -1,0 +1,5 @@
+D:\Unreal Physics Project\MyProject\Intermediate\Build\Win64\UE4Editor\Development\MyProject\Definitions.MyProject.h
+C:\Program Files\Epic Games\UE_4.27\Engine\Source\Runtime\CoreUObject\Public\UObject/GeneratedCppIncludes.h
+C:\Program Files\Epic Games\UE_4.27\Engine\Source\Runtime\CoreUObject\Public\UObject/MetaData.h
+D:\Unreal Physics Project\MyProject\Source\MyProject/PO_Sphere.h
+D:\Unreal Physics Project\MyProject\Intermediate\Build\Win64\UE4Editor\Inc\MyProject\PO_Sphere.generated.h
