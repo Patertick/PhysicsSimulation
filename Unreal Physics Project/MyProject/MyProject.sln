@@ -7,13 +7,13 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Engine", "Engine", "{94A6C6
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Games", "Games", "{8E2F6A87-1826-34F4-940C-CC23A48F9FE4}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "UE4", "Intermediate\ProjectFiles\UE4.vcxproj", "{3559AFFA-AF86-44FE-801C-28288D0394D0}"
-EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "MyProject", "Intermediate\ProjectFiles\MyProject.vcxproj", "{1890C44A-7BB5-4916-9E61-5313E4ECFAA2}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "UE4", "Intermediate\ProjectFiles\UE4.vcxproj", "{3559AFFA-AF86-44FE-801C-28288D0394D0}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Visualizers", "Visualizers", "{1CCEC849-CC72-4C59-8C36-2F7C38706D4C}"
 	ProjectSection(SolutionItems) = preProject
-		C:\Program Files\Epic Games\UE_4.27\Engine\Extras\VisualStudioDebugging\UE4.natvis = C:\Program Files\Epic Games\UE_4.27\Engine\Extras\VisualStudioDebugging\UE4.natvis
+		..\..\..\..\Unreal\UE_4.27\Engine\Extras\VisualStudioDebugging\UE4.natvis = ..\..\..\..\Unreal\UE_4.27\Engine\Extras\VisualStudioDebugging\UE4.natvis
 	EndProjectSection
 EndProject
 Global
@@ -34,16 +34,6 @@ Global
 		ueSolution=true
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{3559AFFA-AF86-44FE-801C-28288D0394D0}.DebugGame Editor|Win32.ActiveCfg = BuiltWithUnrealBuildTool|Win32
-		{3559AFFA-AF86-44FE-801C-28288D0394D0}.DebugGame Editor|Win64.ActiveCfg = BuiltWithUnrealBuildTool|Win32
-		{3559AFFA-AF86-44FE-801C-28288D0394D0}.DebugGame|Win32.ActiveCfg = BuiltWithUnrealBuildTool|Win32
-		{3559AFFA-AF86-44FE-801C-28288D0394D0}.DebugGame|Win64.ActiveCfg = BuiltWithUnrealBuildTool|Win32
-		{3559AFFA-AF86-44FE-801C-28288D0394D0}.Development Editor|Win32.ActiveCfg = BuiltWithUnrealBuildTool|Win32
-		{3559AFFA-AF86-44FE-801C-28288D0394D0}.Development Editor|Win64.ActiveCfg = BuiltWithUnrealBuildTool|Win32
-		{3559AFFA-AF86-44FE-801C-28288D0394D0}.Development|Win32.ActiveCfg = BuiltWithUnrealBuildTool|Win32
-		{3559AFFA-AF86-44FE-801C-28288D0394D0}.Development|Win64.ActiveCfg = BuiltWithUnrealBuildTool|Win32
-		{3559AFFA-AF86-44FE-801C-28288D0394D0}.Shipping|Win32.ActiveCfg = BuiltWithUnrealBuildTool|Win32
-		{3559AFFA-AF86-44FE-801C-28288D0394D0}.Shipping|Win64.ActiveCfg = BuiltWithUnrealBuildTool|Win32
 		{1890C44A-7BB5-4916-9E61-5313E4ECFAA2}.DebugGame Editor|Win32.ActiveCfg = Invalid|Win32
 		{1890C44A-7BB5-4916-9E61-5313E4ECFAA2}.DebugGame Editor|Win64.ActiveCfg = DebugGame_Editor|x64
 		{1890C44A-7BB5-4916-9E61-5313E4ECFAA2}.DebugGame Editor|Win64.Build.0 = DebugGame_Editor|x64
@@ -62,6 +52,16 @@ Global
 		{1890C44A-7BB5-4916-9E61-5313E4ECFAA2}.Shipping|Win32.Build.0 = Shipping|Win32
 		{1890C44A-7BB5-4916-9E61-5313E4ECFAA2}.Shipping|Win64.ActiveCfg = Shipping|x64
 		{1890C44A-7BB5-4916-9E61-5313E4ECFAA2}.Shipping|Win64.Build.0 = Shipping|x64
+		{3559AFFA-AF86-44FE-801C-28288D0394D0}.DebugGame Editor|Win32.ActiveCfg = BuiltWithUnrealBuildTool|Win32
+		{3559AFFA-AF86-44FE-801C-28288D0394D0}.DebugGame Editor|Win64.ActiveCfg = BuiltWithUnrealBuildTool|Win32
+		{3559AFFA-AF86-44FE-801C-28288D0394D0}.DebugGame|Win32.ActiveCfg = BuiltWithUnrealBuildTool|Win32
+		{3559AFFA-AF86-44FE-801C-28288D0394D0}.DebugGame|Win64.ActiveCfg = BuiltWithUnrealBuildTool|Win32
+		{3559AFFA-AF86-44FE-801C-28288D0394D0}.Development Editor|Win32.ActiveCfg = BuiltWithUnrealBuildTool|Win32
+		{3559AFFA-AF86-44FE-801C-28288D0394D0}.Development Editor|Win64.ActiveCfg = BuiltWithUnrealBuildTool|Win32
+		{3559AFFA-AF86-44FE-801C-28288D0394D0}.Development|Win32.ActiveCfg = BuiltWithUnrealBuildTool|Win32
+		{3559AFFA-AF86-44FE-801C-28288D0394D0}.Development|Win64.ActiveCfg = BuiltWithUnrealBuildTool|Win32
+		{3559AFFA-AF86-44FE-801C-28288D0394D0}.Shipping|Win32.ActiveCfg = BuiltWithUnrealBuildTool|Win32
+		{3559AFFA-AF86-44FE-801C-28288D0394D0}.Shipping|Win64.ActiveCfg = BuiltWithUnrealBuildTool|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

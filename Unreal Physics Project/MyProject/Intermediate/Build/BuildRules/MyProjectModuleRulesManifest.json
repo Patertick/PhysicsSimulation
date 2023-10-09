@@ -1,8 +1,8 @@
 {
 	"SourceFiles": [
-		"D:\\Unreal Physics Project\\MyProject\\Source\\MyProject\\MyProject.Build.cs",
-		"D:\\Unreal Physics Project\\MyProject\\Source\\MyProject.Target.cs",
-		"D:\\Unreal Physics Project\\MyProject\\Source\\MyProjectEditor.Target.cs"
+		"D:\\Physics Simulation\\PhysicsSimulation\\Unreal Physics Project\\MyProject\\Source\\MyProject\\MyProject.Build.cs",
+		"D:\\Physics Simulation\\PhysicsSimulation\\Unreal Physics Project\\MyProject\\Source\\MyProject.Target.cs",
+		"D:\\Physics Simulation\\PhysicsSimulation\\Unreal Physics Project\\MyProject\\Source\\MyProjectEditor.Target.cs"
 	],
 	"EngineVersion": "4.27.2"
 }

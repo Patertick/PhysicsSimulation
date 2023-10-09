@@ -25,3 +25,8 @@ void APO_Sphere::Tick(float DeltaTime)
 
 }
 
+bool APO_Sphere::CheckForCollision(FVector CentreToCentreVector, float OtherRadius)
+{
+	return false;
+}
+
