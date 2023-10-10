@@ -30,12 +30,19 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = SphereProperties)
 		float mRadius;
 
+	UPROPERTY(EditAnywhere, Category = SphereProperties)
+		FVector InitialVelocity { 0.0f, 0.0f, 0.0f };
+
+	UPROPERTY(EditAnywhere, Category = SphereProperties)
+		bool isMovingSphere{ true };
+
 
 private:
 	// Physics properties
 	float g = -9.8; // acceleration in m/s/s
-	FVector Velocity{ 0.0f, 0.0f, 0.0f }; // Initial velocity is 0 (measured in m/s)
-	FVector Displacement{ 0.0f, 0.0f, 0.0f}; // Displacement from orgin (measured in meters)
+	FVector Acceleration{ 0.0f, 0.0f,0.0f }; // Acceleration measured in m/s/s
+	FVector Velocity{ -2.0f, -2.0f, 2.0f }; // velocity (measured in m/s)
+	FVector Displacement = GetActorLocation(); // Displacement from orgin (measured in meters)
 
 protected:
 	// Called when the game starts or when spawned
