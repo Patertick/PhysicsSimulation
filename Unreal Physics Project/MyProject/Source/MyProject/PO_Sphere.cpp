@@ -2,12 +2,25 @@
 
 
 #include "PO_Sphere.h"
+#include "Components/StaticMeshComponent.h"
+#include "Components/SphereComponent.h"
 
 // Sets default values
 APO_Sphere::APO_Sphere()
 {
- 	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
+	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
+
+	mSphere = CreateDefaultSubobject<USphereComponent>(TEXT("Physics Sphere"));
+	RootComponent = mSphere;
+
+	mSphereVisual = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Visual Sphere"));
+	mSphereVisual->AttachToComponent(mSphere, FAttachmentTransformRules::KeepRelativeTransform);
+
+	
+	
+	mRadius = mSphere->GetUnscaledSphereRadius();
+ 	
 
 }
 
@@ -23,9 +36,16 @@ void APO_Sphere::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
+	// Calculate Velocity and displacement
+	Velocity += {0.0f, 0.0f, g};
+	Displacement += Velocity;
+
+
+	// After calculations set the actor location to displacement
+	SetActorLocation(Displacement * DeltaTime);
 }
 
-bool APO_Sphere::CheckForCollision(FVector CentreToCentreVector, float OtherRadius)
+bool APO_Sphere::CheckForCollision(FVector centreToCentreVector, float otherRadius)
 {
 	return false;
 }
