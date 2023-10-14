@@ -17,12 +17,14 @@ struct FVector;
 #define MyProject_Source_MyProject_PO_Sphere_h_15_SPARSE_DATA
 #define MyProject_Source_MyProject_PO_Sphere_h_15_RPC_WRAPPERS \
  \
-	DECLARE_FUNCTION(execCheckForCollision);
+	DECLARE_FUNCTION(execCheckForPlaneCollision); \
+	DECLARE_FUNCTION(execCheckForSphereCollision);
 
 
 #define MyProject_Source_MyProject_PO_Sphere_h_15_RPC_WRAPPERS_NO_PURE_DECLS \
  \
-	DECLARE_FUNCTION(execCheckForCollision);
+	DECLARE_FUNCTION(execCheckForPlaneCollision); \
+	DECLARE_FUNCTION(execCheckForSphereCollision);
 
 
 #define MyProject_Source_MyProject_PO_Sphere_h_15_INCLASS_NO_PURE_DECLS \

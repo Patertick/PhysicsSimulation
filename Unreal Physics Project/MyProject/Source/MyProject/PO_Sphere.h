@@ -27,8 +27,23 @@ public:
 		USphereComponent* mSphere;
 
 	// Sphere properties
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = SphereProperties)
+		float mRadius{ 32.0f };
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = SphereProperties)
-		float mRadius;
+		float mVolume;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = SphereProperties)
+		float mDensity;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = SphereProperties)
+		float mSurfaceArea;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = SphereProperties)
+		float mCoefficientOfDrag{ 0.1 }; // assumed sphere is smooth
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = SphereProperties)
+		float mMass{ 10.0f };
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = SphereProperties)
+		float dt{ 0.0f };
+	
+	float startRadius;
+	
 
 	UPROPERTY(EditAnywhere, Category = SphereProperties)
 		bool isMovingSphere{ true };
@@ -36,7 +51,7 @@ public:
 
 private:
 	// Physics properties
-	float g = -9.8; // acceleration in m/s/s
+	FVector Force{ 0.0f, 0.0f, 0.0f }; // Force vector, aggregate all forces in this vector
 	FVector Acceleration{ 0.0f, 0.0f, 0.0f }; // Acceleration measured in m/s/s
 	FVector Velocity{ 0.0f, 0.0f, 0.0f }; // velocity (measured in m/s)
 	FVector Displacement = GetActorLocation(); // Displacement from orgin (measured in meters)
@@ -52,4 +67,8 @@ public:
 		bool CheckForSphereCollision(FVector centreToCentreVector, float otherRadius);
 	UFUNCTION(BlueprintCallable, Category = Collision)
 		bool CheckForPlaneCollision(FVector KToSphereVector, FVector surfaceNormalOfPlane);
+
+	FVector FindGravityForce();
+	FVector FindDragForce(FVector velocity);
+	void StepSimulation(); // to find displacement & velocity from acceleration
 };

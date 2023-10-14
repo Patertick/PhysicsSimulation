@@ -1,16 +1,11 @@
-﻿  Parsing headers for MyProjectEditor
-    Running UnrealHeaderTool "D:\Physics Simulation\PhysicsSimulation\Unreal Physics Project\MyProject\MyProject.uproject" "D:\Physics Simulation\PhysicsSimulation\Unreal Physics Project\MyProject\Intermediate\Build\Win64\MyProjectEditor\Development\MyProjectEditor.uhtmanifest" -LogCmds="loginit warning, logexit warning, logdatabase error" -Unattended -WarningsAsErrors -abslog="C:\Users\patri\AppData\Local\UnrealBuildTool\Log_UHT.txt" -installed
-  LogInit: Display: Loading text-based GConfig....
-  Reflection code generated for MyProjectEditor in 3.4135338 seconds
-  Building MyProjectEditor...
+﻿  Building MyProjectEditor...
   Using Visual Studio 2019 14.29.30038 toolchain (C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Tools\MSVC\14.29.30037) and Windows 10.0.19041.0 SDK (C:\Program Files (x86)\Windows Kits\10).
-  Building 5 actions with 16 processes...
-    [1/5] PO_Sphere.cpp
-    [2/5] PO_Sphere.gen.cpp
-    [3/5] UE4Editor-MyProject-0007.lib
-       Creating library D:\Physics Simulation\PhysicsSimulation\Unreal Physics Project\MyProject\Intermediate\Build\Win64\UE4Editor\Development\MyProject\UE4Editor-MyProject-0007.lib and object D:\Physics Simulation\PhysicsSimulation\Unreal Physics Project\MyProject\Intermediate\Build\Win64\UE4Editor\Development\MyProject\UE4Editor-MyProject-0007.exp
-    [4/5] UE4Editor-MyProject-0007.dll
-       Creating library D:\Physics Simulation\PhysicsSimulation\Unreal Physics Project\MyProject\Intermediate\Build\Win64\UE4Editor\Development\MyProject\UE4Editor-MyProject-0007.suppressed.lib and object D:\Physics Simulation\PhysicsSimulation\Unreal Physics Project\MyProject\Intermediate\Build\Win64\UE4Editor\Development\MyProject\UE4Editor-MyProject-0007.suppressed.exp
-    [5/5] MyProjectEditor.target
-  Total time in Parallel executor: 1.19 seconds
-  Total execution time: 5.28 seconds
+  Building 4 actions with 16 processes...
+    [1/4] PO_Sphere.cpp
+    [2/4] UE4Editor-MyProject-0003.lib
+       Creating library D:\Physics Simulation\PhysicsSimulation\Unreal Physics Project\MyProject\Intermediate\Build\Win64\UE4Editor\Development\MyProject\UE4Editor-MyProject-0003.lib and object D:\Physics Simulation\PhysicsSimulation\Unreal Physics Project\MyProject\Intermediate\Build\Win64\UE4Editor\Development\MyProject\UE4Editor-MyProject-0003.exp
+    [3/4] UE4Editor-MyProject-0003.dll
+       Creating library D:\Physics Simulation\PhysicsSimulation\Unreal Physics Project\MyProject\Intermediate\Build\Win64\UE4Editor\Development\MyProject\UE4Editor-MyProject-0003.suppressed.lib and object D:\Physics Simulation\PhysicsSimulation\Unreal Physics Project\MyProject\Intermediate\Build\Win64\UE4Editor\Development\MyProject\UE4Editor-MyProject-0003.suppressed.exp
+    [4/4] MyProjectEditor.target
+  Total time in Parallel executor: 2.23 seconds
+  Total execution time: 2.76 seconds

@@ -1,0 +1,17 @@
+/NOLOGO
+/errorReport:prompt
+/MACHINE:x64
+/SUBSYSTEM:WINDOWS
+/DEF
+/NAME:"UE4Editor-MyProject-0018.dll"
+/IGNORE:4221
+/NODEFAULTLIB
+"D:\Physics Simulation\PhysicsSimulation\Unreal Physics Project\MyProject\Intermediate\Build\Win64\MyProjectEditor\Development\Engine\SharedPCH.Engine.ShadowErrors.h.obj"
+"D:\Physics Simulation\PhysicsSimulation\Unreal Physics Project\MyProject\Intermediate\Build\Win64\UE4Editor\Development\MyProject\MyProject.cpp.obj"
+"D:\Physics Simulation\PhysicsSimulation\Unreal Physics Project\MyProject\Intermediate\Build\Win64\UE4Editor\Development\MyProject\PO_Sphere.cpp.obj"
+"D:\Physics Simulation\PhysicsSimulation\Unreal Physics Project\MyProject\Intermediate\Build\Win64\UE4Editor\Development\MyProject\SphereActor.cpp.obj"
+"D:\Physics Simulation\PhysicsSimulation\Unreal Physics Project\MyProject\Intermediate\Build\Win64\UE4Editor\Development\MyProject\MyProject.init.gen.cpp.obj"
+"D:\Physics Simulation\PhysicsSimulation\Unreal Physics Project\MyProject\Intermediate\Build\Win64\UE4Editor\Development\MyProject\PO_Sphere.gen.cpp.obj"
+"D:\Physics Simulation\PhysicsSimulation\Unreal Physics Project\MyProject\Intermediate\Build\Win64\UE4Editor\Development\MyProject\SphereActor.gen.cpp.obj"
+"D:\Physics Simulation\PhysicsSimulation\Unreal Physics Project\MyProject\Intermediate\Build\Win64\UE4Editor\Development\MyProject\Default.rc2.res"
+/OUT:"D:\Physics Simulation\PhysicsSimulation\Unreal Physics Project\MyProject\Intermediate\Build\Win64\UE4Editor\Development\MyProject\UE4Editor-MyProject-0018.lib"

@@ -18,12 +18,21 @@ APO_Sphere::APO_Sphere()
 	mSphereVisual = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Visual Sphere"));
 	mSphereVisual->AttachToComponent(mSphere, FAttachmentTransformRules::KeepRelativeTransform);
 
+	startRadius = mSphere->GetUnscaledSphereRadius();
 	
-	
-	mRadius = mSphere->GetUnscaledSphereRadius();
-
-	Acceleration = { 0.0f, 0.0f, g };
+	mSphere->SetSphereRadius(mRadius);
  	
+
+	mVolume = (4 / 3) * PI * (mRadius * mRadius * mRadius);
+	mDensity = mMass / mVolume;
+	mSurfaceArea = 4 * PI * (mRadius * mRadius);
+
+	/*FString tempString = FString::SanitizeFloat(mVolume) + " Volume";
+	GEngine->AddOnScreenDebugMessage(150, 15.0f, FColor::Yellow, *tempString);
+	tempString = FString::SanitizeFloat(mDensity) + " Density";
+	GEngine->AddOnScreenDebugMessage(151, 15.0f, FColor::Yellow, *tempString);
+	tempString = FString::SanitizeFloat(mSurfaceArea) + " SA";
+	GEngine->AddOnScreenDebugMessage(152, 15.0f, FColor::Yellow, *tempString);*/
 
 }
 
@@ -33,6 +42,8 @@ void APO_Sphere::BeginPlay()
 	Super::BeginPlay();
 	Displacement = GetActorLocation();
 	//Velocity = InitialVelocity;
+	this->SetActorScale3D({ mRadius / startRadius, mRadius / startRadius, mRadius / startRadius });
+	Force += FindGravityForce();
 }
 
 // Called every frame
@@ -43,12 +54,7 @@ void APO_Sphere::Tick(float DeltaTime)
 	// Calculate Velocity and displacement
 	if (isMovingSphere)
 	{
-		Velocity += Acceleration;
-		Displacement += Velocity;
-
-
-		// After calculations set the actor location to displacement
-		SetActorLocation(Displacement);
+		StepSimulation();
 	}
 }
 
@@ -97,8 +103,8 @@ bool APO_Sphere::CheckForSphereCollision(FVector centreToCentreVector, float oth
 		{
 			GEngine->AddOnScreenDebugMessage(10, 15.0f, FColor::Yellow, TEXT("Collision Detect Sphere"));
 
-			// once collision occurs set position to collision point (so no overlap happens)
-			Displacement = collisionPoint;
+			// add impulse
+
 			return true;
 		}
 	
@@ -159,14 +165,76 @@ bool APO_Sphere::CheckForPlaneCollision(FVector KToSphereVector, FVector surface
 		GEngine->AddOnScreenDebugMessage(14, 15.0f, FColor::Yellow, TEXT("Collision Detect Plane"));
 		FVector VC = V.GetSafeNormal() * magnitudeVC; // VC and V are in same direction so we can use length of VC to find VC
 
-		// VC is point of collision
-		Displacement += VC/2;
-		SetActorLocation(Displacement);
-		Velocity = { 0.0f, 0.0f, 0.0f };
-		isMovingSphere = false;
+		// Add impulse
+		
 		return true;
 	}
 
 	return false;
+}
+
+FVector APO_Sphere::FindGravityForce()
+{
+	long double G = 6.67430 * powf(10, -11);
+	float EarthMass = 5.98 * powf(10, 24);
+	long double FGrav = G * mMass * EarthMass;
+	float DistanceToEarthCentre = 6.38 * powf(10, 6);
+	FGrav /= (DistanceToEarthCentre * DistanceToEarthCentre);
+	return FVector(0.0f, 0.0f, -FGrav); // Force of gravity acts downwards
+}
+
+FVector APO_Sphere::FindDragForce(FVector velocity)
+{
+	float FDrag = mCoefficientOfDrag * mDensity * ((velocity.Size() * velocity.Size()) / 2) * mSurfaceArea; // find drag force
+	FVector DragVector = -velocity.GetSafeNormal(); // drag acts opposite to direction of movement
+	DragVector *= FDrag; // FDrag value defines magnitude of drag force
+
+	//GEngine->AddOnScreenDebugMessage(100, 15.0f, FColor::Yellow, DragVector.ToString() + ": Drag Vector");
+
+	return DragVector;
+}
+
+void APO_Sphere::StepSimulation()
+{
+	FVector Vnew; // new velocity at time t + dt
+	FVector Snew; // new position at time t + dt
+	FVector k1, k2;
+	FVector F; // total force
+	FVector A; // acceleration
+
+
+	// find forces acting on object
+	F = FindGravityForce() + FindDragForce(Velocity);
+
+	A = F / mMass;
+
+	k1 = dt * A;
+
+	F = FindGravityForce() + FindDragForce(Velocity + k1);
+
+	A = F / mMass;
+
+	k2 = dt * A;
+
+	/*FString tempString = FString::SanitizeFloat(dt) + " Timestep (in seconds)";
+	GEngine->AddOnScreenDebugMessage(15, 15.0f, FColor::Yellow, *tempString);*/
+
+	// calculate new velocity at time t + dt
+
+	Vnew = Velocity + (k1 + k2) / 2;
+
+	// calculate new displacement at time t + dt
+
+	Snew = Displacement + Vnew * dt;
+	//GEngine->AddOnScreenDebugMessage(13, 15.0f, FColor::Yellow, Vnew.ToString() + ": Velocity");
+	//GEngine->AddOnScreenDebugMessage(14, 15.0f, FColor::Yellow, Snew.ToString() + ": Displacement");
+
+	// update old velocity and displacement with the new ones
+
+	Velocity = Vnew;
+	Displacement = Snew;
+
+	SetActorLocation(Displacement);
+
 }
 
