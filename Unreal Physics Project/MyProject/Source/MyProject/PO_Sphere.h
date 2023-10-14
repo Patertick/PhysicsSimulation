@@ -31,17 +31,14 @@ public:
 		float mRadius;
 
 	UPROPERTY(EditAnywhere, Category = SphereProperties)
-		FVector InitialVelocity { 0.0f, 0.0f, 0.0f };
-
-	UPROPERTY(EditAnywhere, Category = SphereProperties)
 		bool isMovingSphere{ true };
 
 
 private:
 	// Physics properties
 	float g = -9.8; // acceleration in m/s/s
-	FVector Acceleration{ 0.0f, 0.0f,0.0f }; // Acceleration measured in m/s/s
-	FVector Velocity{ -2.0f, -2.0f, 2.0f }; // velocity (measured in m/s)
+	FVector Acceleration{ 0.0f, 0.0f, 0.0f }; // Acceleration measured in m/s/s
+	FVector Velocity{ 0.0f, 0.0f, 0.0f }; // velocity (measured in m/s)
 	FVector Displacement = GetActorLocation(); // Displacement from orgin (measured in meters)
 
 protected:
@@ -52,5 +49,7 @@ public:
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
 	UFUNCTION(BlueprintCallable, Category = Collision)
-	bool CheckForCollision(FVector centreToCentreVector, float otherRadius);
+		bool CheckForSphereCollision(FVector centreToCentreVector, float otherRadius);
+	UFUNCTION(BlueprintCallable, Category = Collision)
+		bool CheckForPlaneCollision(FVector KToSphereVector, FVector surfaceNormalOfPlane);
 };

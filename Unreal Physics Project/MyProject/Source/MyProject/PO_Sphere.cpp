@@ -21,6 +21,8 @@ APO_Sphere::APO_Sphere()
 	
 	
 	mRadius = mSphere->GetUnscaledSphereRadius();
+
+	Acceleration = { 0.0f, 0.0f, g };
  	
 
 }
@@ -51,18 +53,12 @@ void APO_Sphere::Tick(float DeltaTime)
 }
 
 
-bool APO_Sphere::CheckForCollision(FVector centreToCentreVector, float otherRadius)
+bool APO_Sphere::CheckForSphereCollision(FVector centreToCentreVector, float otherRadius)
 {
-	if (isMovingSphere)
-	{
-		return false;
-	}
+	if (Velocity.Size() <= 0.0f) return false;
 	//define V and |V|
 	float magnitudeV = Velocity.Size();
-	FString floatStr = FString::SanitizeFloat(magnitudeV) + " Magnitude V";
-	GEngine->AddOnScreenDebugMessage(1, 15.0f, FColor::Yellow, *floatStr);
 	FVector V = Velocity;
-	GEngine->AddOnScreenDebugMessage(2, 15.0f, FColor::Yellow, V.ToString() + " vector V");
 	//define A and |A|
 	float magnitudeA = centreToCentreVector.Size();
 
@@ -73,66 +69,103 @@ bool APO_Sphere::CheckForCollision(FVector centreToCentreVector, float otherRadi
 		return false;
 	}
 
-	floatStr = FString::SanitizeFloat(magnitudeA) + " Magnitude A";
-	GEngine->AddOnScreenDebugMessage(3, 15.0f, FColor::Yellow, *floatStr);
-	FVector A = centreToCentreVector;
-	GEngine->AddOnScreenDebugMessage(4, 15.0f, FColor::Yellow, A.ToString() + " Vector A");
-	float q = FVector::DotProduct(A, V); // get dot product between A and V
-	floatStr = FString::SanitizeFloat(q) + " dot product A,V";
-	GEngine->AddOnScreenDebugMessage(5, 15.0f, FColor::Yellow, *floatStr);
-	while (q == NULL) {
-		q = acos(q / (magnitudeA * magnitudeV)); // find angle q between A and V
-	}
-	floatStr = FString::SanitizeFloat(q) + " Angle between A and V in radians";
-	GEngine->AddOnScreenDebugMessage(6, 15.0f, FColor::Yellow, *floatStr);
+	//FVector A = centreToCentreVector;
+	float q = FVector::DotProduct(centreToCentreVector, V); // get dot product between A and V
+	q = acos(q / (magnitudeA * magnitudeV)); // find angle q between A and V
+	
 	q = q * (180 / PI); // convert to degrees
-	if (q == 180.0 || q == 360.0)
-	{
-		q = 0.0f;
-	}
-	floatStr = FString::SanitizeFloat(q) + " Angle between A and V in degrees";
-	GEngine->AddOnScreenDebugMessage(7, 15.0f, FColor::Yellow, *floatStr);
 	float d = sin(q) * magnitudeA; // find size of d
 	d = sqrt(d * d); // absolute value of d
-	while (d == NULL) {
-		d = sin(q) * magnitudeA; // find size of d
-		d = sqrt(d * d); // absolute value of d
-	}
-	floatStr = FString::SanitizeFloat(d) + " Size of d";
-	GEngine->AddOnScreenDebugMessage(11, 15.0f, FColor::Yellow, *floatStr);
 	float radiusSum = otherRadius + mRadius; // get sum of radii
-	floatStr = FString::SanitizeFloat(radiusSum) + " Sum of radii";
-	GEngine->AddOnScreenDebugMessage(9, 15.0f, FColor::Yellow, *floatStr);
 
 	//can a collision occur?
 	if (d < radiusSum)
 	{
 		//find e using pythagoras
 		float e = sqrtf((radiusSum * radiusSum) - (d * d));
-		floatStr = FString::SanitizeFloat(e) + " magnitude e";
-		GEngine->AddOnScreenDebugMessage(12, 15.0f, FColor::Yellow, *floatStr);
 
 		//find vector VC length
 		float VCMagnitude = sqrtf((magnitudeA * magnitudeA) - (d * d)) - e;
-		floatStr = FString::SanitizeFloat(VCMagnitude) + " magnitude VC";
-		GEngine->AddOnScreenDebugMessage(13, 15.0f, FColor::Yellow, *floatStr);
 
 		//find vector VC
 		FVector VC = V.GetSafeNormal() * VCMagnitude;
 
-		GEngine->AddOnScreenDebugMessage(14, 15.0f, FColor::Yellow, VC.ToString() + " Vector VC");
 
 		FVector collisionPoint = Displacement + VC;
 
 		if (VCMagnitude <= 0) // collision has taken place
 		{
-			GEngine->AddOnScreenDebugMessage(10, 15.0f, FColor::Yellow, TEXT("Collision has taken place"));
-			
+			GEngine->AddOnScreenDebugMessage(10, 15.0f, FColor::Yellow, TEXT("Collision Detect Sphere"));
+
+			// once collision occurs set position to collision point (so no overlap happens)
+			Displacement = collisionPoint;
 			return true;
 		}
 	
 	}
 
+
+	return false;
+}
+
+bool APO_Sphere::CheckForPlaneCollision(FVector KToSphereVector, FVector surfaceNormalOfPlane)
+{
+
+	if (Velocity.Size() <= 0.0f) return false;
+	FString floatStr;
+	FVector N = surfaceNormalOfPlane;
+	float magnitudeN = surfaceNormalOfPlane.Size();
+	FVector P = KToSphereVector;
+	float magnitudeP = KToSphereVector.Size();
+	// find angle between N and P
+	float q1 = FVector::DotProduct(surfaceNormalOfPlane, KToSphereVector);
+
+	q1 = acos(q1 / (magnitudeN * magnitudeP));
+
+	q1 = q1 * (180 / PI); // convert to degrees
+
+	float q2 = 90.0f - q1; // q1 + q2 should equal 90 degrees so we find q2 by taking 90 from q1
+
+	float d = FVector::DotProduct(N, KToSphereVector) / magnitudeN; // find magnitude of d using pythagorean theorem (sin(theta) = Opposite/Hypoteneus)
+
+	d = sqrt(d * d); // absolute value of d
+
+	float r = mRadius;
+
+	FVector V = Velocity;
+	float magnitudeV = Velocity.Size();
+
+	// find angle between V and -N
+	float s = FVector::DotProduct(V, -surfaceNormalOfPlane);
+
+	if (s / magnitudeN * magnitudeV > 1.0f) s = acos(1.0f);
+	s = acos(s / (magnitudeN * magnitudeV));
+
+	s = s * (180 / PI);
+	
+
+	float vcOffset = r / (cos(s)); // amount to take away from magnitudeVC to get accurate magnitude
+	float magnitudeVC = d / cos(s); // find magnitude of VC using pythagorean theorem (cos(theta) = adjacent/Hypoteneus)
+
+	magnitudeVC = sqrt(magnitudeVC * magnitudeVC);
+	vcOffset = sqrt(vcOffset * vcOffset);
+
+	magnitudeVC -= vcOffset;
+
+
+	if (magnitudeVC <= magnitudeV) // if true a collision will accur and VC will give the point of collision
+	{
+
+		GEngine->AddOnScreenDebugMessage(14, 15.0f, FColor::Yellow, TEXT("Collision Detect Plane"));
+		FVector VC = V.GetSafeNormal() * magnitudeVC; // VC and V are in same direction so we can use length of VC to find VC
+
+		// VC is point of collision
+		Displacement += VC/2;
+		SetActorLocation(Displacement);
+		Velocity = { 0.0f, 0.0f, 0.0f };
+		isMovingSphere = false;
+		return true;
+	}
 
 	return false;
 }
