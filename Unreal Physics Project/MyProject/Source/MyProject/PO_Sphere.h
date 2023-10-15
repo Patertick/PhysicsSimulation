@@ -41,6 +41,8 @@ public:
 		float mMass{ 10.0f };
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = SphereProperties)
 		float dt{ 0.0f };
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = SphereProperties)
+		float mCoefficientOfRestitution{ 1.0f }; // perfectly elastic
 	
 	float startRadius;
 	

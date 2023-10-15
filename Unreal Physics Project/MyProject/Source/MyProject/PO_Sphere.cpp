@@ -20,19 +20,15 @@ APO_Sphere::APO_Sphere()
 
 	startRadius = mSphere->GetUnscaledSphereRadius();
 	
-	mSphere->SetSphereRadius(mRadius);
+	mSphere->SetSphereRadius(mRadius); 
  	
+	mRadius = mRadius / 100; // convert to meters
 
 	mVolume = (4 / 3) * PI * (mRadius * mRadius * mRadius);
 	mDensity = mMass / mVolume;
 	mSurfaceArea = 4 * PI * (mRadius * mRadius);
 
-	/*FString tempString = FString::SanitizeFloat(mVolume) + " Volume";
-	GEngine->AddOnScreenDebugMessage(150, 15.0f, FColor::Yellow, *tempString);
-	tempString = FString::SanitizeFloat(mDensity) + " Density";
-	GEngine->AddOnScreenDebugMessage(151, 15.0f, FColor::Yellow, *tempString);
-	tempString = FString::SanitizeFloat(mSurfaceArea) + " SA";
-	GEngine->AddOnScreenDebugMessage(152, 15.0f, FColor::Yellow, *tempString);*/
+	
 
 }
 
@@ -44,6 +40,13 @@ void APO_Sphere::BeginPlay()
 	//Velocity = InitialVelocity;
 	this->SetActorScale3D({ mRadius / startRadius, mRadius / startRadius, mRadius / startRadius });
 	Force += FindGravityForce();
+
+	/*FString tempString = FString::SanitizeFloat(mVolume) + " Volume";
+	GEngine->AddOnScreenDebugMessage(150, 15.0f, FColor::Yellow, *tempString);
+	tempString = FString::SanitizeFloat(mDensity) + " Density";
+	GEngine->AddOnScreenDebugMessage(151, 15.0f, FColor::Yellow, *tempString);
+	tempString = FString::SanitizeFloat(mSurfaceArea) + " SA";
+	GEngine->AddOnScreenDebugMessage(152, 15.0f, FColor::Yellow, *tempString);*/
 }
 
 // Called every frame
@@ -61,10 +64,9 @@ void APO_Sphere::Tick(float DeltaTime)
 
 bool APO_Sphere::CheckForSphereCollision(FVector centreToCentreVector, float otherRadius)
 {
-	if (Velocity.Size() <= 0.0f) return false;
+	if (Velocity.Size() <= 0.0f || !isMovingSphere) return false;
 	//define V and |V|
 	float magnitudeV = Velocity.Size();
-	FVector V = Velocity;
 	//define A and |A|
 	float magnitudeA = centreToCentreVector.Size();
 
@@ -76,7 +78,7 @@ bool APO_Sphere::CheckForSphereCollision(FVector centreToCentreVector, float oth
 	}
 
 	//FVector A = centreToCentreVector;
-	float q = FVector::DotProduct(centreToCentreVector, V); // get dot product between A and V
+	float q = FVector::DotProduct(centreToCentreVector, Velocity); // get dot product between A and V
 	q = acos(q / (magnitudeA * magnitudeV)); // find angle q between A and V
 	
 	q = q * (180 / PI); // convert to degrees
@@ -94,7 +96,7 @@ bool APO_Sphere::CheckForSphereCollision(FVector centreToCentreVector, float oth
 		float VCMagnitude = sqrtf((magnitudeA * magnitudeA) - (d * d)) - e;
 
 		//find vector VC
-		FVector VC = V.GetSafeNormal() * VCMagnitude;
+		FVector VC = Velocity.GetSafeNormal() * VCMagnitude;
 
 
 		FVector collisionPoint = Displacement + VC;
@@ -117,7 +119,7 @@ bool APO_Sphere::CheckForSphereCollision(FVector centreToCentreVector, float oth
 bool APO_Sphere::CheckForPlaneCollision(FVector KToSphereVector, FVector surfaceNormalOfPlane)
 {
 
-	if (Velocity.Size() <= 0.0f) return false;
+	if (Velocity.Size() <= 0.0f || !isMovingSphere) return false;
 	FString floatStr;
 	FVector N = surfaceNormalOfPlane;
 	float magnitudeN = surfaceNormalOfPlane.Size();
@@ -132,41 +134,52 @@ bool APO_Sphere::CheckForPlaneCollision(FVector KToSphereVector, FVector surface
 
 	float q2 = 90.0f - q1; // q1 + q2 should equal 90 degrees so we find q2 by taking 90 from q1
 
-	float d = FVector::DotProduct(N, KToSphereVector) / magnitudeN; // find magnitude of d using pythagorean theorem (sin(theta) = Opposite/Hypoteneus)
+	float d = FVector::DotProduct(N, KToSphereVector) / magnitudeN; // find magnitude of d 
 
 	d = sqrt(d * d); // absolute value of d
 
 	float r = mRadius;
 
-	FVector V = Velocity;
 	float magnitudeV = Velocity.Size();
 
 	// find angle between V and -N
-	float s = FVector::DotProduct(V, -surfaceNormalOfPlane);
+	float s = FVector::DotProduct(Velocity, -surfaceNormalOfPlane);
 
 	if (s / magnitudeN * magnitudeV > 1.0f) s = acos(1.0f);
 	s = acos(s / (magnitudeN * magnitudeV));
 
 	s = s * (180 / PI);
 	
-
-	float vcOffset = r / (cos(s)); // amount to take away from magnitudeVC to get accurate magnitude
+	d -= r; // constant 24 found by trial and error (a radius of 24 gives the perfect collision so modulate based on this value)
+	//float vcOffset = r / (cos(s)); // amount to take away from magnitudeVC to get accurate magnitude
 	float magnitudeVC = d / cos(s); // find magnitude of VC using pythagorean theorem (cos(theta) = adjacent/Hypoteneus)
 
 	magnitudeVC = sqrt(magnitudeVC * magnitudeVC);
-	vcOffset = sqrt(vcOffset * vcOffset);
+	//vcOffset = sqrt(vcOffset * vcOffset);
 
-	magnitudeVC -= vcOffset;
+	//magnitudeVC -= vcOffset;
 
+	FString tempString = FString::SanitizeFloat(d) + " d";
+	GEngine->AddOnScreenDebugMessage(10, 15.0f, FColor::Yellow, *tempString);
 
-	if (magnitudeVC <= magnitudeV) // if true a collision will accur and VC will give the point of collision
+	if (magnitudeVC <= magnitudeV || d < 0.0f) // if true a collision will accur and VC will give the point of collision
 	{
 
+		// enforce d as 0
+		//magnitudeVC = 0.0f / cos(s);
+
 		GEngine->AddOnScreenDebugMessage(14, 15.0f, FColor::Yellow, TEXT("Collision Detect Plane"));
-		FVector VC = V.GetSafeNormal() * magnitudeVC; // VC and V are in same direction so we can use length of VC to find VC
+		FVector VC = Velocity.GetSafeNormal() * magnitudeVC; // VC and V are in same direction so we can use length of VC to find VC
 
 		// Add impulse
-		
+		//SetActorLocation(GetActorLocation() + VC);
+		FVector UnitVAfterCollision = 2 * surfaceNormalOfPlane * 
+			(FVector::DotProduct(surfaceNormalOfPlane, -Velocity.GetSafeNormal())) + Velocity.GetSafeNormal(); // get unit vector of velocity after collision
+		FVector VAfterCollision = UnitVAfterCollision * Velocity.Size() * mCoefficientOfRestitution; // find velocity vector after collision using unit vector & size of velocity vector before collision
+		Velocity = VAfterCollision;
+		if (VAfterCollision.Size() < 1.0f) {
+			isMovingSphere = false;
+		}
 		return true;
 	}
 
@@ -225,7 +238,7 @@ void APO_Sphere::StepSimulation()
 
 	// calculate new displacement at time t + dt
 
-	Snew = Displacement + Vnew * dt;
+	Snew = Displacement + Vnew * 1000 * dt;
 	//GEngine->AddOnScreenDebugMessage(13, 15.0f, FColor::Yellow, Vnew.ToString() + ": Velocity");
 	//GEngine->AddOnScreenDebugMessage(14, 15.0f, FColor::Yellow, Snew.ToString() + ": Displacement");
 
@@ -234,7 +247,7 @@ void APO_Sphere::StepSimulation()
 	Velocity = Vnew;
 	Displacement = Snew;
 
-	SetActorLocation(Displacement);
+	SetActorLocation(Displacement); // convert to centimeters
 
 }
 
