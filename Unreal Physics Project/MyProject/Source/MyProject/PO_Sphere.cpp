@@ -47,6 +47,7 @@ void APO_Sphere::BeginPlay()
 	GEngine->AddOnScreenDebugMessage(151, 15.0f, FColor::Yellow, *tempString);
 	tempString = FString::SanitizeFloat(mSurfaceArea) + " SA";
 	GEngine->AddOnScreenDebugMessage(152, 15.0f, FColor::Yellow, *tempString);*/
+
 }
 
 // Called every frame
@@ -106,7 +107,6 @@ bool APO_Sphere::CheckForSphereCollision(FVector centreToCentreVector, float oth
 			GEngine->AddOnScreenDebugMessage(10, 15.0f, FColor::Yellow, TEXT("Collision Detect Sphere"));
 
 			// add impulse
-
 			return true;
 		}
 	
@@ -159,9 +159,6 @@ bool APO_Sphere::CheckForPlaneCollision(FVector KToSphereVector, FVector surface
 
 	//magnitudeVC -= vcOffset;
 
-	FString tempString = FString::SanitizeFloat(d) + " d";
-	GEngine->AddOnScreenDebugMessage(10, 15.0f, FColor::Yellow, *tempString);
-
 	if (magnitudeVC <= magnitudeV || d < 0.0f) // if true a collision will accur and VC will give the point of collision
 	{
 
@@ -177,12 +174,89 @@ bool APO_Sphere::CheckForPlaneCollision(FVector KToSphereVector, FVector surface
 			(FVector::DotProduct(surfaceNormalOfPlane, -Velocity.GetSafeNormal())) + Velocity.GetSafeNormal(); // get unit vector of velocity after collision
 		FVector VAfterCollision = UnitVAfterCollision * Velocity.Size() * mCoefficientOfRestitution; // find velocity vector after collision using unit vector & size of velocity vector before collision
 		Velocity = VAfterCollision;
-		if (VAfterCollision.Size() < 1.0f) {
-			isMovingSphere = false;
+		NormalForce = -FindGravityForce();
+		return true;
+	}
+	NormalForce = { 0.0f, 0.0f, 0.0f };
+	return false;
+}
+
+bool APO_Sphere::CheckForMovingSphereCollision(FVector otherVelocity, float otherRadius, FVector otherStartPosSphere)
+{
+	//other.Velocity - V2
+	//Velocity - V1
+
+	//other.mRadius - r2
+	//mRadius - r1
+
+	//startPosSphere1 - P1
+	//startPosSphere2 - P2
+
+	// define sum values for each vector for simplicity in calculations
+	float sumXp = Displacement.X - otherStartPosSphere.X;
+	float sumYp = Displacement.Y - otherStartPosSphere.Y;
+	float sumZp = Displacement.Z - otherStartPosSphere.Z;
+
+	GEngine->AddOnScreenDebugMessage(21, 15.0f, FColor::Yellow, otherStartPosSphere.ToString() + " P2");
+	GEngine->AddOnScreenDebugMessage(22, 15.0f, FColor::Yellow, Displacement.ToString() + " P1");
+
+	GEngine->AddOnScreenDebugMessage(23, 15.0f, FColor::Yellow, Velocity.ToString() + " V1");
+	GEngine->AddOnScreenDebugMessage(24, 15.0f, FColor::Yellow, otherVelocity.ToString() + " V2");
+
+	float sumXv = Velocity.X - otherVelocity.X;
+	float sumYv = Velocity.Y - otherVelocity.Y;
+	float sumZv = Velocity.Z - otherVelocity.Z;
+
+
+	float A = (sumXv * sumXv) + (sumYv * sumYv) + (sumZv * sumZv);
+
+	float B = (2 * sumXp * sumXv) + (2 * sumYp * sumYv) + (2 * sumZp * sumZv);
+
+	float C = (sumXp * sumXp) + (sumYp * sumYp) + (sumZp * sumZp) - ((mRadius + otherRadius) * (mRadius * otherRadius));
+
+
+	// determinent is in square root of quadratic formula
+	float Determinent = (B * B) - (4 * A * C);
+
+	// thus if determinent is less than 0 there is no valid values for t and thus no collision has occurred
+	if (Determinent < 0) {
+		return false;
+	}
+
+	float t1 = (-B + sqrtf(Determinent)) / (2 * A); // first t value
+	float t2 = (-B - sqrtf(Determinent)) / (2 * A); // second t value
+
+	/*FString temp = FString::SanitizeFloat(t1) + " t1 val";
+	GEngine->AddOnScreenDebugMessage(19, 15.0f, FColor::Yellow, *temp);
+	temp = FString::SanitizeFloat(t2) + " t2 val";
+	GEngine->AddOnScreenDebugMessage(20, 15.0f, FColor::Yellow, *temp);*/
+
+	if (t1 <= 0.0f || t2 <= 0.0f) isMovingSphere = false;
+
+	if (t1 > 0.0f && t2 > 0.0f && t1 < 1.0f && t2 < 1.0f) // if either values are not in range 0-1 or there is only one value for t, then there is no collision (in this frame)
+	{
+
+
+		// collision possible
+		float t;
+		// find smaller value
+		if (t1 < t2) {
+			t = t1;
 		}
+		else {
+			t = t2;
+		}
+		// collision occurred
+		//dt = t;
+		//StepSimulation();
+		GEngine->AddOnScreenDebugMessage(18, 15.0f, FColor::Yellow, TEXT("Collision Detect Moving Sphere"));
+		isMovingSphere = false;
 		return true;
 	}
 
+
+		
+	
 	return false;
 }
 
@@ -217,13 +291,13 @@ void APO_Sphere::StepSimulation()
 
 
 	// find forces acting on object
-	F = FindGravityForce() + FindDragForce(Velocity);
+	F = (FindGravityForce() + NormalForce) + FindDragForce(Velocity);
 
 	A = F / mMass;
 
 	k1 = dt * A;
 
-	F = FindGravityForce() + FindDragForce(Velocity + k1);
+	F = (FindGravityForce() + NormalForce) + FindDragForce(Velocity + k1);
 
 	A = F / mMass;
 
@@ -238,7 +312,7 @@ void APO_Sphere::StepSimulation()
 
 	// calculate new displacement at time t + dt
 
-	Snew = Displacement + Vnew * 1000 * dt;
+	Snew = Displacement + Vnew * dt * 100;
 	//GEngine->AddOnScreenDebugMessage(13, 15.0f, FColor::Yellow, Vnew.ToString() + ": Velocity");
 	//GEngine->AddOnScreenDebugMessage(14, 15.0f, FColor::Yellow, Snew.ToString() + ": Displacement");
 

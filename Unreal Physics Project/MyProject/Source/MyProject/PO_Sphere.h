@@ -58,6 +58,8 @@ private:
 	FVector Velocity{ 0.0f, 0.0f, 0.0f }; // velocity (measured in m/s)
 	FVector Displacement = GetActorLocation(); // Displacement from orgin (measured in meters)
 
+
+	FVector NormalForce{ 0.0f, 0.0f, 0.0f };
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
@@ -69,8 +71,14 @@ public:
 		bool CheckForSphereCollision(FVector centreToCentreVector, float otherRadius);
 	UFUNCTION(BlueprintCallable, Category = Collision)
 		bool CheckForPlaneCollision(FVector KToSphereVector, FVector surfaceNormalOfPlane);
+	UFUNCTION(BlueprintCallable, Category = Collision)
+		bool CheckForMovingSphereCollision(FVector otherVelocity, float otherRadius, FVector otherStartPosSphere);
 
 	FVector FindGravityForce();
 	FVector FindDragForce(FVector velocity);
 	void StepSimulation(); // to find displacement & velocity from acceleration
+	UFUNCTION(BlueprintCallable, Category = Getter)
+		FVector GetDisplacement() { return Displacement; }
+	UFUNCTION(BlueprintCallable, Category = Getter)
+		FVector GetSphereVelocity() { return Velocity; }
 };
