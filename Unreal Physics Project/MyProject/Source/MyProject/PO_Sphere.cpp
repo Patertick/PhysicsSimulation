@@ -39,7 +39,7 @@ void APO_Sphere::BeginPlay()
 	Displacement = GetActorLocation();
 	//Velocity = InitialVelocity;
 	this->SetActorScale3D({ mRadius / startRadius, mRadius / startRadius, mRadius / startRadius });
-	Force += FindGravityForce();
+
 
 	/*FString tempString = FString::SanitizeFloat(mVolume) + " Volume";
 	GEngine->AddOnScreenDebugMessage(150, 15.0f, FColor::Yellow, *tempString);
@@ -123,65 +123,109 @@ bool APO_Sphere::CheckForPlaneCollision(FVector KToSphereVector, FVector surface
 	FString floatStr;
 	FVector N = surfaceNormalOfPlane;
 	float magnitudeN = surfaceNormalOfPlane.Size();
-	FVector P = KToSphereVector;
-	float magnitudeP = KToSphereVector.Size();
+	//FVector P = KToSphereVector;
+	//float magnitudeP = KToSphereVector.Size();
 	// find angle between N and P
-	float q1 = FVector::DotProduct(surfaceNormalOfPlane, KToSphereVector);
+	//float q1 = FVector::DotProduct(surfaceNormalOfPlane, KToSphereVector);
 
-	q1 = acos(q1 / (magnitudeN * magnitudeP));
+	//q1 = acos(q1 / (magnitudeN * magnitudeP));
 
-	q1 = q1 * (180 / PI); // convert to degrees
+	//q1 = q1 * (180 / PI); // convert to degrees
 
-	float q2 = 90.0f - q1; // q1 + q2 should equal 90 degrees so we find q2 by taking 90 from q1
+	//float q2 = 90.0f - q1; // q1 + q2 should equal 90 degrees so we find q2 by taking 90 from q1
 
 	float d = FVector::DotProduct(N, KToSphereVector) / magnitudeN; // find magnitude of d 
 
-	d = sqrt(d * d); // absolute value of d
+	//d = abs(d); // absolute value of d
 
 	float r = mRadius;
 
-	float magnitudeV = Velocity.Size();
+	//float magnitudeV = Velocity.Size();
 
 	// find angle between V and -N
-	float s = FVector::DotProduct(Velocity, -surfaceNormalOfPlane);
+	//float s = FVector::DotProduct(Velocity, -surfaceNormalOfPlane);
 
-	if (s / magnitudeN * magnitudeV > 1.0f) s = acos(1.0f);
-	s = acos(s / (magnitudeN * magnitudeV));
+	//if (s / magnitudeN * magnitudeV > 1.0f) s = acos(1.0f);
+	//s = acos(s / (magnitudeN * magnitudeV));
 
-	s = s * (180 / PI);
+	//s = s * (180 / PI);
 	
-	d -= r; // constant 24 found by trial and error (a radius of 24 gives the perfect collision so modulate based on this value)
+	//d -= r; // constant 24 found by trial and error (a radius of 24 gives the perfect collision so modulate based on this value)
 	//float vcOffset = r / (cos(s)); // amount to take away from magnitudeVC to get accurate magnitude
-	float magnitudeVC = d / cos(s); // find magnitude of VC using pythagorean theorem (cos(theta) = adjacent/Hypoteneus)
+	//float magnitudeVC = (d - r) / cos(s); // find magnitude of VC using pythagorean theorem (cos(theta) = adjacent/Hypoteneus)
 
-	magnitudeVC = sqrt(magnitudeVC * magnitudeVC);
+	//magnitudeVC = sqrt(magnitudeVC * magnitudeVC);
 	//vcOffset = sqrt(vcOffset * vcOffset);
 
 	//magnitudeVC -= vcOffset;
 
-	if (magnitudeVC <= magnitudeV || d < 0.0f) // if true a collision will accur and VC will give the point of collision
+	if (d < r) // if true a collision will accur and VC will give the point of collision
 	{
 
-		// enforce d as 0
-		//magnitudeVC = 0.0f / cos(s);
 
-		GEngine->AddOnScreenDebugMessage(14, 15.0f, FColor::Yellow, TEXT("Collision Detect Plane"));
-		FVector VC = Velocity.GetSafeNormal() * magnitudeVC; // VC and V are in same direction so we can use length of VC to find VC
+		//GEngine->AddOnScreenDebugMessage(2190, 15.0f, FColor::Yellow, TEXT("Collision Detect Plane"));
+		//FVector VC = Velocity.GetSafeNormal() * magnitudeVC; // VC and V are in same direction so we can use length of VC to find VC
+		//GEngine->AddOnScreenDebugMessage(2191, 15.0f, FColor::Yellow, VC.ToString() + " VC");
+		if(!IsNormalForce) Displacement.Z -= d - r + 1.0; // only do this on first collisions (not when using normal force)
 
 		// Add impulse
 		//SetActorLocation(GetActorLocation() + VC);
 		FVector UnitVAfterCollision = 2 * surfaceNormalOfPlane * 
 			(FVector::DotProduct(surfaceNormalOfPlane, -Velocity.GetSafeNormal())) + Velocity.GetSafeNormal(); // get unit vector of velocity after collision
 		FVector VAfterCollision = UnitVAfterCollision * Velocity.Size() * mCoefficientOfRestitution; // find velocity vector after collision using unit vector & size of velocity vector before collision
-		Velocity = VAfterCollision;
-		NormalForce = -FindGravityForce();
+		
+		if(!VAfterCollision.IsNearlyZero()) Velocity = VAfterCollision; // don't bother with low impulses
+		
+		NormalForceVector = -surfaceNormalOfPlane;
 		return true;
 	}
-	NormalForce = { 0.0f, 0.0f, 0.0f };
+	if(NormalForceVector == -surfaceNormalOfPlane) NormalForceVector = { 0.0f,0.0f,0.0f };
 	return false;
 }
 
-bool APO_Sphere::CheckForMovingSphereCollision(FVector otherVelocity, float otherRadius, FVector otherStartPosSphere)
+FVector APO_Sphere::FindImpulseMovingSphere(FVector otherVelocity, FVector selfVelocity, FVector otherLocation, FVector selfLocation, float otherMass)
+{
+	// Velocity - V1
+	// otherVelocity - V2
+
+	// Displacement - S1
+	// otherLocation - S2
+
+	FVector lineBetweenSpheres = selfLocation - otherLocation;
+
+	// find angle q1/2 (angle between V1/2 and lineBetweenSpheres)
+	float q1 = FVector::DotProduct(selfVelocity, lineBetweenSpheres);
+
+	q1 = acos(q1 / (selfVelocity.Size() * lineBetweenSpheres.Size()));
+
+	q1 = q1 * (180 / PI); // convert to degrees
+
+	float q2 = FVector::DotProduct(otherVelocity, otherLocation - selfLocation);
+
+	q2 = acos(q2 / (otherVelocity.Size() * (otherLocation - selfLocation).Size()));
+
+	q2 = q2 * (180 / PI); // convert to degrees
+
+	q2 = abs(q2);
+
+	q1 = abs(q1);
+
+	FVector Z1 = lineBetweenSpheres / lineBetweenSpheres.Size();
+
+	float B1 = (cos(q2) * otherVelocity.Size() * otherMass) / mMass;
+
+	FVector Z2 = otherLocation - selfLocation;
+	Z2 = Z2 / Z2.Size();
+
+	float B2 = (cos(q1) * selfVelocity.Size() * mMass) / otherMass;
+
+	FVector newVelocity = selfVelocity + (B1 * Z1) - (B2 * Z2);
+
+	return newVelocity * mCoefficientOfRestitution;
+
+}
+
+bool APO_Sphere::CheckForMovingSphereCollision(FVector otherVelocity, float otherRadius, FVector otherLocation, float otherMass)
 {
 	//other.Velocity - V2
 	//Velocity - V1
@@ -192,16 +236,32 @@ bool APO_Sphere::CheckForMovingSphereCollision(FVector otherVelocity, float othe
 	//startPosSphere1 - P1
 	//startPosSphere2 - P2
 
+	float radSum = mRadius + otherRadius;
+
+	float distance = (otherLocation - GetActorLocation()).Size();
+
+	distance = abs(distance);
+
+	
+
+	if (distance <= radSum)
+	{
+
+		if (!IsImpulseLocked) {
+			GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Yellow, TEXT("Collision Detect Moving Sphere"));
+			FVector newVel = FindImpulseMovingSphere(otherVelocity, Velocity, otherLocation, Displacement, otherMass);
+			Velocity -= newVel;
+			IsImpulseLocked = true; // lock collisions for one time step after collisions
+			return true;
+		}
+		return true;
+	}
+	IsImpulseLocked = false;
 	// define sum values for each vector for simplicity in calculations
-	float sumXp = Displacement.X - otherStartPosSphere.X;
-	float sumYp = Displacement.Y - otherStartPosSphere.Y;
-	float sumZp = Displacement.Z - otherStartPosSphere.Z;
+	float sumXp = GetActorLocation().X - otherLocation.X;
+	float sumYp = GetActorLocation().Y - otherLocation.Y;
+	float sumZp = GetActorLocation().Z - otherLocation.Z;
 
-	GEngine->AddOnScreenDebugMessage(21, 15.0f, FColor::Yellow, otherStartPosSphere.ToString() + " P2");
-	GEngine->AddOnScreenDebugMessage(22, 15.0f, FColor::Yellow, Displacement.ToString() + " P1");
-
-	GEngine->AddOnScreenDebugMessage(23, 15.0f, FColor::Yellow, Velocity.ToString() + " V1");
-	GEngine->AddOnScreenDebugMessage(24, 15.0f, FColor::Yellow, otherVelocity.ToString() + " V2");
 
 	float sumXv = Velocity.X - otherVelocity.X;
 	float sumYv = Velocity.Y - otherVelocity.Y;
@@ -226,14 +286,10 @@ bool APO_Sphere::CheckForMovingSphereCollision(FVector otherVelocity, float othe
 	float t1 = (-B + sqrtf(Determinent)) / (2 * A); // first t value
 	float t2 = (-B - sqrtf(Determinent)) / (2 * A); // second t value
 
-	/*FString temp = FString::SanitizeFloat(t1) + " t1 val";
-	GEngine->AddOnScreenDebugMessage(19, 15.0f, FColor::Yellow, *temp);
-	temp = FString::SanitizeFloat(t2) + " t2 val";
-	GEngine->AddOnScreenDebugMessage(20, 15.0f, FColor::Yellow, *temp);*/
 
-	if (t1 <= 0.0f || t2 <= 0.0f) isMovingSphere = false;
+	//if (t1 <= 0.0f && t2 <= 0.0f) GEngine->AddOnScreenDebugMessage(233, 0.1f, FColor::Yellow, TEXT("Collision Detect Moving Sphere"));
 
-	if (t1 > 0.0f && t2 > 0.0f && t1 < 1.0f && t2 < 1.0f) // if either values are not in range 0-1 or there is only one value for t, then there is no collision (in this frame)
+	if (t1 >= 0.0f && t2 >= 0.0f && t1 <= 1.0f && t2 <= 1.0f) // if either values are not in range 0-1 or there is only one value for t, then there is no collision (in this frame)
 	{
 
 
@@ -250,7 +306,7 @@ bool APO_Sphere::CheckForMovingSphereCollision(FVector otherVelocity, float othe
 		//dt = t;
 		//StepSimulation();
 		GEngine->AddOnScreenDebugMessage(18, 15.0f, FColor::Yellow, TEXT("Collision Detect Moving Sphere"));
-		isMovingSphere = false;
+		//isMovingSphere = false;
 		return true;
 	}
 
@@ -281,6 +337,12 @@ FVector APO_Sphere::FindDragForce(FVector velocity)
 	return DragVector;
 }
 
+FVector APO_Sphere::FindWindForce(FVector windSpeed)
+{
+	FVector windForce = mSurfaceArea * mDensity * WindSpeed;
+	return windForce;
+}
+
 void APO_Sphere::StepSimulation()
 {
 	FVector Vnew; // new velocity at time t + dt
@@ -291,17 +353,27 @@ void APO_Sphere::StepSimulation()
 
 
 	// find forces acting on object
-	F = (FindGravityForce() + NormalForce) + FindDragForce(Velocity);
+	F = FindGravityForce() + FindWindForce(WindSpeed) + FindDragForce(Velocity) + Force; // global forces + aggregate forces
+
+	
+	// Normal force vector is - surface normal -N, this is a unit vector, to find desired magnitude, find amount of force exerted in direction of
+	// normal force vector and since this force acts in opposite direction to current force, take it away from Force vector
+	F -= NormalForceVector * FVector::DotProduct(F, NormalForceVector);
 
 	A = F / mMass;
 
 	k1 = dt * A;
 
-	F = (FindGravityForce() + NormalForce) + FindDragForce(Velocity + k1);
+	F = FindGravityForce() + FindWindForce(WindSpeed) + FindDragForce(Velocity + k1) + Force;
+	
+	F -= NormalForceVector * FVector::DotProduct(F, NormalForceVector);
+	
 
 	A = F / mMass;
 
 	k2 = dt * A;
+
+	Force = { 0.0f, 0.0f, 0.0f };
 
 	/*FString tempString = FString::SanitizeFloat(dt) + " Timestep (in seconds)";
 	GEngine->AddOnScreenDebugMessage(15, 15.0f, FColor::Yellow, *tempString);*/

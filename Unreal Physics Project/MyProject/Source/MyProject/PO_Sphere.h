@@ -26,6 +26,8 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 		USphereComponent* mSphere;
 
+
+
 	// Sphere properties
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = SphereProperties)
 		float mRadius{ 32.0f };
@@ -44,6 +46,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = SphereProperties)
 		float mCoefficientOfRestitution{ 1.0f }; // perfectly elastic
 	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = SphereProperties)
+		FVector WindSpeed { 0.0f, 0.0f, 0.0f };
+
 	float startRadius;
 	
 
@@ -59,7 +64,9 @@ private:
 	FVector Displacement = GetActorLocation(); // Displacement from orgin (measured in meters)
 
 
-	FVector NormalForce{ 0.0f, 0.0f, 0.0f };
+	bool IsNormalForce{ false };
+	FVector NormalForceVector;
+	bool IsImpulseLocked{ false };
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
@@ -72,13 +79,16 @@ public:
 	UFUNCTION(BlueprintCallable, Category = Collision)
 		bool CheckForPlaneCollision(FVector KToSphereVector, FVector surfaceNormalOfPlane);
 	UFUNCTION(BlueprintCallable, Category = Collision)
-		bool CheckForMovingSphereCollision(FVector otherVelocity, float otherRadius, FVector otherStartPosSphere);
+		bool CheckForMovingSphereCollision(FVector otherVelocity, float otherRadius, FVector otherLocation, float otherMass);
 
 	FVector FindGravityForce();
 	FVector FindDragForce(FVector velocity);
+	FVector FindWindForce(FVector windSpeed);
 	void StepSimulation(); // to find displacement & velocity from acceleration
 	UFUNCTION(BlueprintCallable, Category = Getter)
 		FVector GetDisplacement() { return Displacement; }
 	UFUNCTION(BlueprintCallable, Category = Getter)
 		FVector GetSphereVelocity() { return Velocity; }
+
+	FVector FindImpulseMovingSphere(FVector otherVelocity, FVector selfVelocity, FVector otherLocation, FVector selfLocation, float otherMass);
 };
