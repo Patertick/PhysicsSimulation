@@ -175,6 +175,7 @@ bool APO_Sphere::CheckForPlaneCollision(FVector KToSphereVector, FVector surface
 		FVector VAfterCollision = UnitVAfterCollision * Velocity.Size() * mCoefficientOfRestitution; // find velocity vector after collision using unit vector & size of velocity vector before collision
 		
 		if(!VAfterCollision.IsNearlyZero()) Velocity = VAfterCollision; // don't bother with low impulses
+		else 
 		
 		NormalForceVector = -surfaceNormalOfPlane;
 		return true;
