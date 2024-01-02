@@ -1,6 +1,22 @@
 # Visual Studio 2015 user specific files
 .vs/
 
+Binaries
+DerivedDataCache
+Intermediate
+Saved
+.idea/
+.vscode
+.vs
+*.VC.db
+*.opensdf
+*.opendb
+*.sdf
+*.sln
+*.suo
+*.xcodeproj
+*.xcworkspace
+
 # Compiled Object files
 *.slo
 *.lo
