@@ -42,6 +42,8 @@ void APhysicsObject::BeginPlay()
 		return;
 	}
 
+	DecomposeMesh(mVertexPositions);
+	
 
 	GenerateSphere();
 
@@ -206,6 +208,226 @@ void APhysicsObject::GenerateSphere()
 	for (int i = 0; i < mVertexPositions.Num(); i++) {
 		SphereOfSphereAndPoint(mVertexPositions[i]);
 	}
+}
+
+ConvexHull APhysicsObject::CreateConvexHull(const TArray<FVector> points)
+{
+	if (points.Num() <= 0) return; // avoid trying to create a non zero convex hull
+	TArray<FVector> tempPointSet = points; // only check points from this point set
+	ConvexHull newHull;
+	FVector centroid{ 0.0f, 0.0f, 0.0f };
+	// find centre point
+	for (int i = 0; i < tempPointSet.Num(); i++)
+	{
+		centroid += tempPointSet[i];
+	}
+
+	centroid = centroid / tempPointSet.Num();
+
+	newHull.centroid = centroid;
+
+	// find six extremal points
+
+	Plane checkFace[6];
+	checkFace[0].normal = FVector{0.0f, 0.0f, 1.0f}; // up
+	checkFace[0].pointOnPlane = newHull.centroid;
+	checkFace[1].normal = FVector{ 0.0f, 0.0f, -1.0f }; // down
+	checkFace[1].pointOnPlane = newHull.centroid;
+	checkFace[2].normal = FVector{ 0.0f, 1.0f, 0.0f }; // front
+	checkFace[2].pointOnPlane = newHull.centroid;
+	checkFace[3].normal = FVector{ 0.0f, -1.0f, 0.0f }; // behind
+	checkFace[3].pointOnPlane = newHull.centroid;
+	checkFace[4].normal = FVector{ 1.0f, 0.0f, 0.0f }; // right
+	checkFace[4].pointOnPlane = newHull.centroid;
+	checkFace[5].normal = FVector{ -1.0f, 0.0f, 0.0f }; // left
+	checkFace[5].pointOnPlane = newHull.centroid;
+
+	TArray<FVector> extremalPoints;
+	for (int i = 0; i < 6; i++)
+	{
+		extremalPoints.Add(newHull.centroid);
+	}
+
+	for (int i = 0; i < tempPointSet.Num(); i++)
+	{
+		for (int j = 0; j < extremalPoints.Num(); j++)
+		{
+			if (IsInFrontOfPlane(tempPointSet[i], checkFace[j])) {
+				// find if new point is further than currently checked point
+				FVector P = tempPointSet[i] - checkFace[j].pointOnPlane;
+				float newDistance = abs(FVector::DotProduct(P, checkFace[j].normal));
+				P = extremalPoints[j] - checkFace[j].pointOnPlane;
+				float oldDistance = abs(FVector::DotProduct(P, checkFace[j].normal));
+
+				if (newDistance > oldDistance) extremalPoints[j] = tempPointSet[i]; // if new distance is greater than old distance, set new extremal point
+			}
+		}
+	}
+
+	for (int i = 0; i < extremalPoints.Num(); i++)
+	{
+		// add extremal points to hull (these points will definitely be a part of the final hull)
+		newHull.points.Add(extremalPoints[i]);
+	}
+
+	ConstructFaces(newHull);
+
+	// remove points inside current hull from inspection
+	for (int i = 0; i < tempPointSet.Num(); i++)
+	{
+		int numFacesBehind = 0;
+		for (int j = 0; j < newHull.faces.Num(); j++)
+		{
+			// create a plane from face
+			Plane temp;
+			temp.normal = FVector::CrossProduct(newHull.faces[j].a.edgeVector, newHull.faces[j].b.edgeVector);
+			temp.normal.Normalize();
+			temp.pointOnPlane = newHull.faces[j].a.b;
+			if (!IsInFrontOfPlane(tempPointSet[i], temp)) numFacesBehind++;
+		}
+		if (numFacesBehind >= newHull.faces.Num()) tempPointSet.Remove(tempPointSet[i]); // if the point is behind all faces, remove from consideration
+	}
+
+	extremalPoints.Empty();
+	// keep adding new points to hull until no points exist outside of hull
+	bool pointsExist;
+	do {
+		// find extremal points using each face as a new plane
+
+		for (int i = 0; i < newHull.faces.Num(); i++) 
+		{
+			extremalPoints.Add(newHull.faces[i].a.b);
+		}
+
+		for (int i = 0; i < tempPointSet.Num(); i++)
+		{
+			// go through each new face
+			for (int j = 0; j < newHull.faces.Num(); j++)
+			{
+				// only check newly created faces (checking the same face twice for an extremal point is redundant and could create a non convex hull)
+				if (newHull.faces[j].isNew) {
+					newHull.faces[j].isNew = false;
+					Plane temp;
+					temp.normal = FVector::CrossProduct(newHull.faces[j].a.edgeVector, newHull.faces[j].b.edgeVector);
+					temp.normal.Normalize();
+					temp.pointOnPlane = newHull.faces[j].a.b;
+					if (IsInFrontOfPlane(tempPointSet[i], temp)) {
+						FVector P = tempPointSet[i] - checkFace[j].pointOnPlane;
+						float newDistance = abs(FVector::DotProduct(P, checkFace[j].normal));
+						P = extremalPoints[j] - checkFace[j].pointOnPlane;
+						float oldDistance = abs(FVector::DotProduct(P, checkFace[j].normal));
+
+						if (newDistance > oldDistance) extremalPoints[j] = tempPointSet[i];
+					}
+				}
+			}
+		}
+
+		int numberOfPointsInHull = newHull.points.Num();
+
+		// add extremal points to hull
+		for (int i = 0; i < extremalPoints.Num(); i++)
+		{
+			if (extremalPoints[i] == newHull.faces[i].a.b) continue;
+			newHull.points.Add(extremalPoints[i]);
+		}
+
+		// there are no extremal points to add, hence we have a completed hull
+		if (numberOfPointsInHull == newHull.points.Num()) {
+			pointsExist = false;
+			continue;
+		}
+
+		ConstructFaces(newHull);
+
+		for (int i = 0; i < tempPointSet.Num(); i++)
+		{
+			int numFacesBehind = 0;
+			for (int j = 0; j < newHull.faces.Num(); j++)
+			{
+				Plane temp;
+				temp.normal = FVector::CrossProduct(newHull.faces[j].a.edgeVector, newHull.faces[j].b.edgeVector);
+				temp.normal.Normalize();
+				temp.pointOnPlane = newHull.faces[j].a.b;
+				if (!IsInFrontOfPlane(tempPointSet[i], temp)) numFacesBehind++;
+			}
+			if (numFacesBehind >= newHull.faces.Num()) tempPointSet.Remove(tempPointSet[i]);
+		}
+
+	} while (pointsExist);
+	
+	return newHull;
+}
+
+void APhysicsObject::ConstructFaces(ConvexHull convexHull)
+{
+}
+
+void APhysicsObject::DecomposeMesh(const TArray<FVector> points)
+{
+	// create an approximate sub set of convex hulls that define the meshes collision volumes
+	ConvexHull tempHull = CreateConvexHull(points); // create a convex hull of full mesh
+	float concavity = FindConcavity(tempHull, points); // find concavity
+	if (concavity <= mMaxConcavity) { // if starting mesh is already convex, we can simply push it to the mesh vector as its only element
+		mMeshes.push_back(tempHull);
+		// create OBB?
+
+
+		return; // no need to continue function past this point
+	}
+	else { 
+		// find an inflexive vertex
+		Plane hyperPlane = FindInflexFacePlane(tempHull, points);
+		TArray<FVector> first, second; // two new point sets will be used to create two new convex hulls recursively
+
+		// find all points in front of hyperplane, add to first point set
+
+		for (int i = 0; i < points.Num(); i++)
+		{
+			if (IsInFrontOfPlane(points[i], hyperPlane)) first.Add(points[i]);
+		}
+
+		// find all points behind the hyperplane, add to second point set
+
+		hyperPlane.normal *= -1; // reverse direction of plane normal (so we can use same in front of plane checking function for behind the plane)
+
+		for (int i = 0; i < points.Num(); i++)
+		{
+			if (IsInFrontOfPlane(points[i], hyperPlane)) second.Add(points[i]);
+		}
+
+		// call function for each point set
+
+		DecomposeMesh(first);
+		DecomposeMesh(second);
+		return; // function can finish here
+	}
+}
+
+bool APhysicsObject::IsInFrontOfPlane(FVector point, Plane plane)
+{
+	return false;
+}
+
+Plane APhysicsObject::FindInflexFacePlane(ConvexHull convexHull, const TArray<FVector> points)
+{
+
+	return;
+}
+
+float APhysicsObject::FindConcavity(ConvexHull convexHull, const TArray<FVector> points)
+{
+
+	return false;
+}
+
+OBB APhysicsObject::GenerateOBB(ConvexHull convexHull)
+{
+	return OBB();
+}
+
+void APhysicsObject::OrientOBB()
+{
 }
 
 // Called every frame
