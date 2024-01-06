@@ -210,7 +210,7 @@ void APhysicsObject::GenerateSphere()
 	}
 }
 
-ConvexHull APhysicsObject::CreateConvexHull(const TArray<FVector> points)
+ConvexHull APhysicsObject::CreateConvexHull(const TArray<FVector> &points)
 {
 	if (points.Num() <= 0) return; // avoid trying to create a non zero convex hull
 	TArray<FVector> tempPointSet = points; // only check points from this point set
@@ -270,7 +270,7 @@ ConvexHull APhysicsObject::CreateConvexHull(const TArray<FVector> points)
 		newHull.points.Add(extremalPoints[i]);
 	}
 
-	ConstructFaces(newHull);
+	newHull.faces = ConstructFaces(newHull);
 
 	// remove points inside current hull from inspection
 	for (int i = 0; i < tempPointSet.Num(); i++)
@@ -338,7 +338,7 @@ ConvexHull APhysicsObject::CreateConvexHull(const TArray<FVector> points)
 			continue;
 		}
 
-		ConstructFaces(newHull);
+		newHull.faces = ConstructFaces(newHull);
 
 		for (int i = 0; i < tempPointSet.Num(); i++)
 		{
@@ -355,29 +355,190 @@ ConvexHull APhysicsObject::CreateConvexHull(const TArray<FVector> points)
 		}
 
 	} while (pointsExist);
+
+	FVector centrePoint{ 0.0f, 0.0f, 0.0f };
+	for (int i = 0; i < newHull.points.Num(); i++) 
+	{
+		centrePoint += newHull.points[i];
+	}
+	centrePoint = centrePoint / newHull.points.Num();
+
+	newHull.centroid = centrePoint;
 	
 	return newHull;
 }
 
-void APhysicsObject::ConstructFaces(ConvexHull convexHull)
+TArray<Face> APhysicsObject::ConstructFaces(ConvexHull convexHull)
 {
+	// CONSTRUCT EDGES
+	// go through every point in the hull and construct four edges for each vertex (using closest vertices)
+	TArray<Edge> edges; // store all edges in an array
+	for (int i = 0; i < convexHull.points.Num(); i++)
+	{
+		TArray<FVector> closestPoints;
+		// only construct edges from 1st vertex onwards (first vertex will not form an edge with itself)
+		for (int j = 1; j < convexHull.points.Num(); j++)
+		{
+			if (closestPoints.Num() < 4) closestPoints.Add(convexHull.points[j]);
+			else {
+				for (int k = 0; k < closestPoints.Num(); k++)
+				{
+					// find distances between current closest point and new point
+					float newDistance = FVector::Distance(convexHull.points[j], convexHull.points[i]);
+					float oldDistance = FVector::Distance(closestPoints[k], convexHull.points[i]);
+
+					// the lower distance is the new closest point
+					if (newDistance < oldDistance) { 
+						closestPoints[k] = convexHull.points[j]; 
+						continue;
+					}
+				}
+			}
+		}
+		for (int k = 0; k < closestPoints.Num(); k++)
+		{
+			// add new edges for each closest point computed
+			Edge newEdge;
+			newEdge.a = convexHull.points[i];
+			newEdge.b = closestPoints[k];
+			edges.Add(newEdge);
+		}
+	}
+
+	// delete redundant edges from array
+	for (int i = 0; i < edges.Num(); i++)
+	{
+		for (int j = 1; j < edges.Num(); j++)
+		{
+			// checks if two edges store the exact same vertices
+			if (edges[i] == edges[j]) edges.Remove(edges[j]);
+			else continue;
+		}
+	}
+
+	for (int i = 0; i < edges.Num(); i++)
+	{
+		edges[i].edgeVector = edges[i].b - edges[i].a;
+	}
+
+	// CONSTRUCT FACES
+
+	TArray<Face> faces;
+
+	for (int i = 0; i < edges.Num(); i++)
+	{
+		FVector V1 = edges[i].a;
+		FVector V2 = edges[i].b;
+		TArray<FVector> potentialV3;
+		TArray<Edge> potentialV3Edge;
+		for (int j = 1; j < edges.Num(); j++)
+		{
+			if (edges[j].a == V2)
+			{
+				potentialV3.Add(edges[j].b);
+				potentialV3Edge.Add(edges[j]);
+			}
+			else if (edges[j].b == V2)
+			{
+				potentialV3.Add(edges[j].a);
+				potentialV3Edge.Add(edges[j]);
+			}
+		}
+		// check for edges that contain V1-V3
+		for (int j = 0; j < potentialV3.Num(); j++)
+		{
+			for (int k = 1; k < edges.Num(); k++)
+			{
+				if (edges[k].a == potentialV3[j] && edges[k].b == V1) {
+					// construct new face using V1, V2 & V3
+					Face newFace;
+					newFace.a = edges[i];
+					newFace.b = edges[k];
+					newFace.c = potentialV3Edge[j];
+					faces.Add(newFace);
+				}
+				else if (edges[k].b == potentialV3[j] && edges[k].a == V1) {
+					Face newFace;
+					newFace.a = edges[i];
+					newFace.b = edges[k];
+					newFace.c = potentialV3Edge[j];
+					faces.Add(newFace);
+				}
+				
+			}
+		}
+
+		// repeat prior steps for V1
+		potentialV3.Empty();
+		potentialV3Edge.Empty();
+
+		for (int j = 1; j < edges.Num(); j++)
+		{
+			if (edges[j].a == V1)
+			{
+				potentialV3.Add(edges[j].b);
+				potentialV3Edge.Add(edges[j]);
+			}
+			else if (edges[j].b == V1)
+			{
+				potentialV3.Add(edges[j].a);
+				potentialV3Edge.Add(edges[j]);
+			}
+		}
+		// check for edges that contain V2-V3
+		for (int j = 0; j < potentialV3.Num(); j++)
+		{
+			for (int k = 1; k < edges.Num(); k++)
+			{
+				if (edges[k].a == potentialV3[j] && edges[k].b == V2) {
+					// construct new face using V1, V2 & V3
+					Face newFace;
+					newFace.a = edges[i];
+					newFace.b = edges[k];
+					newFace.c = potentialV3Edge[j];
+					faces.Add(newFace);
+				}
+				else if (edges[k].b == potentialV3[j] && edges[k].a == V2) {
+					Face newFace;
+					newFace.a = edges[i];
+					newFace.b = edges[k];
+					newFace.c = potentialV3Edge[j];
+					faces.Add(newFace);
+				}
+
+			}
+		}
+	}
+
+	// delete redundant faces
+	for (int i = 0; i < faces.Num(); i++)
+	{
+		for (int j = 1; j < faces.Num(); j++)
+		{
+			if (faces[i] == faces[j]) faces.Remove(faces[j]);
+			continue;
+		}
+	}
+	
+	return faces;
 }
 
-void APhysicsObject::DecomposeMesh(const TArray<FVector> points)
+void APhysicsObject::DecomposeMesh(const TArray<FVector> &points)
 {
 	// create an approximate sub set of convex hulls that define the meshes collision volumes
 	ConvexHull tempHull = CreateConvexHull(points); // create a convex hull of full mesh
 	float concavity = FindConcavity(tempHull, points); // find concavity
 	if (concavity <= mMaxConcavity) { // if starting mesh is already convex, we can simply push it to the mesh vector as its only element
 		mMeshes.push_back(tempHull);
-		// create OBB?
 
 
 		return; // no need to continue function past this point
 	}
 	else { 
 		// find an inflexive vertex
-		Plane hyperPlane = FindInflexFacePlane(tempHull, points);
+		Plane hyperPlane = FindInflexFacePlane(points);
+		if (hyperPlane.normal.IsZero()) return; // we dont want to try to create new hulls from zero planes (this means the above function couldn't find
+												// an inflex face
 		TArray<FVector> first, second; // two new point sets will be used to create two new convex hulls recursively
 
 		// find all points in front of hyperplane, add to first point set
@@ -406,28 +567,145 @@ void APhysicsObject::DecomposeMesh(const TArray<FVector> points)
 
 bool APhysicsObject::IsInFrontOfPlane(FVector point, Plane plane)
 {
-	return false;
+	FVector P = point - plane.pointOnPlane;
+
+	float dist = FVector::DotProduct(plane.normal, P) / P.Size();
+
+	if (dist > 0.0f) return true; // point is in front of plane
+	return false; // point is behind or on plane (either way return false, its not in front of plane if its on the plane technically)
 }
 
-Plane APhysicsObject::FindInflexFacePlane(ConvexHull convexHull, const TArray<FVector> points)
+Plane APhysicsObject::FindInflexFacePlane(const TArray<FVector> &points)
 {
+	// for each face
+	// find every face that share edges
+	// find surface normal of each face and reverse it
+	// if the angle between any of the normals is higher than 180 degrees, return current face plane
+	TArray<Face> faces;
+	for (int i = 0; i < points.Num(); i += 3)
+	{
+		Edge newEdgeA, newEdgeB, newEdgeC;
+		newEdgeA.a = points[i];
+		newEdgeA.b = points[i + 1];
+		newEdgeA.edgeVector = newEdgeA.b - newEdgeA.a;
+		newEdgeB.a = points[i];
+		newEdgeB.b = points[i + 2];
+		newEdgeB.edgeVector = newEdgeB.b - newEdgeB.a;
+		newEdgeC.a = points[i + 1];
+		newEdgeC.b = points[i + 2];
+		newEdgeC.edgeVector = newEdgeC.b - newEdgeC.a;
 
-	return;
+		Face newFace;
+		newFace.a = newEdgeA;
+		newFace.b = newEdgeB;
+		newFace.c = newEdgeC;
+		faces.Add(newFace);
+
+	}
+
+	for (int i = 0; i < faces.Num(); i++)
+	{
+		TArray<Face> sharingFaces;
+		for (int j = 1; j < faces.Num(); j++)
+		{
+			if (i == j) continue; // dont test faces against themselves
+			// create an array of all faces that share an edge with faces[i]
+			if (faces[i].a == faces[j].a || faces[i].a == faces[j].b || faces[i].a == faces[j].c) {
+				if (!sharingFaces.Contains(faces[j])) sharingFaces.Add(faces[j]); // make sure we dont have redundant faces
+				continue;
+			}
+			else if (faces[i].b == faces[j].a || faces[i].b == faces[j].b || faces[i].b == faces[j].c) {
+				if (!sharingFaces.Contains(faces[j])) sharingFaces.Add(faces[j]);
+				continue;
+			}
+			else if (faces[i].c == faces[j].a || faces[i].c == faces[j].b || faces[i].c == faces[j].c) {
+				if (!sharingFaces.Contains(faces[j])) sharingFaces.Add(faces[j]);
+				continue;
+			}
+		}
+		Plane inflexPlane;
+		for (int j = 0; j < sharingFaces.Num(); j++)
+		{
+			Plane first, second;
+			first.normal = FVector::CrossProduct(faces[i].a.edgeVector, faces[i].b.edgeVector).GetSafeNormal();
+			first.pointOnPlane = faces[i].a.a;
+
+			second.normal = FVector::CrossProduct(sharingFaces[j].a.edgeVector, sharingFaces[j].b.edgeVector).GetSafeNormal();
+			second.pointOnPlane = sharingFaces[j].a.a;
+
+			first.normal *= -1;
+			second.normal *= -1;
+
+			// find angle between normals
+
+			float cosX = FVector::DotProduct(first.normal, second.normal); // both normals are unit vectors so we dont divide by magnitude
+
+			if (cosX > 1.0f || cosX < 0.0f) continue; // avoid NAN values
+			float angle = acos(cosX); // angle in radians
+
+			angle = angle * 180.0f;
+			angle = angle / PI;
+
+			if (angle > 180.0f)
+			{
+				inflexPlane = first;
+				return inflexPlane;
+			}
+
+		}
+	}
+	Plane errorPlane;
+	errorPlane.normal = { 0.0f, 0.0f, 0.0f };
+	errorPlane.pointOnPlane = { 0.0f, 0.0f, 0.0f };
+	return errorPlane;
 }
 
-float APhysicsObject::FindConcavity(ConvexHull convexHull, const TArray<FVector> points)
+float APhysicsObject::FindConcavity(ConvexHull convexHull, const TArray<FVector> &points)
 {
+	// go through each point
 
-	return false;
-}
+	float mostConcavePointValue = 0.0f;
 
-OBB APhysicsObject::GenerateOBB(ConvexHull convexHull)
-{
-	return OBB();
-}
+	for (int i = 0; i < points.Num(); i += 3) // go through every triplet of points (triangles)
+	{
+		// get surface normal using cross product
+		FVector surfaceNormal = FVector::CrossProduct(points[i + 1] - points[i], points[i + 2] - points[i]);
+		surfaceNormal.Normalize();
 
-void APhysicsObject::OrientOBB()
-{
+		
+		Ray surfaceRay;
+		surfaceRay.direction = surfaceNormal;
+		surfaceRay.origin = (points[i] + points[i + 1] + points[i + 2]) / 3; // use centre of surface as origin
+		
+		for (int j = 0; j < convexHull.faces.Num(); j++)
+		{
+			Plane facePlane;
+			facePlane.normal = FVector::CrossProduct(convexHull.faces[j].a.edgeVector, convexHull.faces[j].b.edgeVector);
+			facePlane.pointOnPlane = convexHull.faces[j].a.a;
+
+			if (IsInFrontOfPlane(surfaceRay.origin, facePlane)) continue; // rays can only project forwards, so if plane is behind origin, ray will never intersect
+			
+			float projection = FVector::DotProduct(facePlane.normal, surfaceRay.direction);
+			if (abs(projection) > 0.0001f) // make sure projection is not zero, this means the ray is perpendicular to the plane and never intersects
+			{
+				surfaceRay.t = FVector::DotProduct(facePlane.pointOnPlane - surfaceRay.origin, facePlane.normal) / projection;
+				if (surfaceRay.t != 0) continue;
+
+				// we have the intersect point so we can now find points concavity measure
+
+				FVector intersectPoint = surfaceRay.origin + (surfaceRay.direction * surfaceRay.t);
+
+				for (int k = 0; k < 3; k++) // find most concave point in the triplet
+				{
+					float concavity = FVector::Distance(points[i + k], intersectPoint);
+					if (concavity > mostConcavePointValue) mostConcavePointValue = concavity;
+				}
+			}
+		}
+
+	}
+
+	return mostConcavePointValue; // return the most concave surface in the set of points
 }
 
 // Called every frame
@@ -596,6 +874,12 @@ FVector APhysicsObject::CheckForPlaneCollision()
 	}
 
 	return FVector{ 0.0f,0.0f,0.0f };
+}
+
+bool APhysicsObject::SeparatingAxisTest(const TArray<ConvexHull>& other)
+{
+
+	return false;
 }
 
 

@@ -22,16 +22,24 @@ struct Capsule {
 	float sRadius;
 };
 
-struct OBB {
-	FVector centroid; // centre of OBB
-	FVector localAxes[3]; // x, y and z
-	FVector halfwidthExtents; // along each axes
+struct Ray {
+	FVector origin;
+	FVector direction;
+	float t;
 };
 
 struct Edge {
 	FVector a;
 	FVector b;
 	FVector edgeVector;
+
+	bool operator==(Edge& other)
+	{
+		if (a == other.a || a == other.b) {
+			if (b == other.a || b == other.b) return true;
+		}
+		return false;
+	}
 };
 
 struct Face {
@@ -39,6 +47,17 @@ struct Face {
 	Edge b;
 	Edge c;
 	bool isNew{ true };
+	bool operator==(Face& other)
+	{
+		if (a == other.a || a == other.b || a == other.c)
+		{
+			if (b == other.a || b == other.b || b == other.c)
+			{
+				if (c == other.a || c == other.b || c == other.c) return true;
+			}
+		}
+		return false;
+	}
 };
 
 struct ConvexHull {
@@ -103,9 +122,6 @@ private:
 
 	Capsule mCapsule;
 
-	std::vector<OBB> mBoundingBoxes; // for use in separating axis tests, eachj sub object of the main mesh will have its own OBB
-									 // (possible to only have one in the case of a convex polyhedra)
-
 	
 
 	TArray<FVector> mVertexPositions;
@@ -139,19 +155,16 @@ protected:
 	void GenerateSphere();
 
 	// Functions for use in creation of convex sub meshes and resultant OBBs
-	ConvexHull CreateConvexHull(const TArray<FVector> points);
-	void ConstructFaces(ConvexHull convexHull);
-	void DecomposeMesh(const TArray<FVector> points);
+	ConvexHull CreateConvexHull(const TArray<FVector> &points);
+	TArray<Face> ConstructFaces(ConvexHull convexHull);
+	void DecomposeMesh(const TArray<FVector> &points);
 	bool IsInFrontOfPlane(FVector point, Plane plane);
-	Plane FindInflexFacePlane(ConvexHull convexHull, const TArray<FVector> points);
-	float FindConcavity(ConvexHull convexHull, const TArray<FVector> points);
-	OBB GenerateOBB(ConvexHull convexHull);
-
-	// OBB helper functions
-	void OrientOBB();
+	Plane FindInflexFacePlane(const TArray<FVector> &points);
+	float FindConcavity(ConvexHull convexHull, const TArray<FVector> &points);
 
 	// Collision check functions
 	FVector CheckForPlaneCollision();
+	bool SeparatingAxisTest(const TArray<ConvexHull>& other);
 
 	// Simulation functions
 	FVector FindGravityForce();
