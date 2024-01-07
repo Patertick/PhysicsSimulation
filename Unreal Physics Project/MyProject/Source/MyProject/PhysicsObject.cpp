@@ -48,22 +48,22 @@ void APhysicsObject::BeginPlay()
 	GenerateSphere();
 
 	// Find a predicted sphere from generated sphere
-	mPredictedSphere.sCenter = mSphere.sCenter;
-	mPredictedSphere.sRadius = mSphere.sRadius;
+	mPredictedSphere.center = mSphere.center;
+	mPredictedSphere.radius = mSphere.radius;
 
 	// set visuals
 	FVector oldPos = GetActorLocation();
-	SetActorLocation(mSphere.sCenter);
-	mBoundingVisualSphere->SetSphereRadius(mSphere.sRadius);
+	SetActorLocation(mSphere.center);
+	mBoundingVisualSphere->SetSphereRadius(mSphere.radius);
 	FVector newPos = GetActorLocation();
 
 	FVector offset = newPos - oldPos;
 
 	if (!offset.IsNearlyZero()) mObjectMesh->SetWorldLocation(GetActorLocation() - offset);
 
-	mDisplacement = mSphere.sCenter;
+	mDisplacement = mSphere.center;
 
-	float calcRadius = mSphere.sRadius / 100; // convert to meters
+	float calcRadius = mSphere.radius / 100; // convert to meters
 
 	mVolume = (4 / 3) * PI * (calcRadius * calcRadius * calcRadius);
 	mDensity = mMass / mVolume;
@@ -178,8 +178,8 @@ void APhysicsObject::SphereFromDistantPoints()
 	float sphereRadius = FVector::DotProduct(mVertexPositions[max] - sphereCenter,
 		mVertexPositions[max] - sphereCenter);
 	sphereRadius = sqrt(sphereRadius);
-	mSphere.sCenter = sphereCenter;
-	mSphere.sRadius = sphereRadius;
+	mSphere.center = sphereCenter;
+	mSphere.radius = sphereRadius;
 
 
 }
@@ -187,16 +187,16 @@ void APhysicsObject::SphereFromDistantPoints()
 void APhysicsObject::SphereOfSphereAndPoint(FVector point)
 {
 	// find distance between input point and center of bounding sphere
-	FVector distanceVector = point - mSphere.sCenter;
+	FVector distanceVector = point - mSphere.center;
 	float squareDistance = FVector::DotProduct(distanceVector, distanceVector);
 
-	if (squareDistance > mSphere.sRadius * mSphere.sRadius) {
+	if (squareDistance > mSphere.radius * mSphere.radius) {
 		// point is outside sphere so update sphere bounds
 		float distance = sqrt(squareDistance);
-		float newRadius = (mSphere.sRadius + distance) * 0.5f;
-		float k = (newRadius - mSphere.sRadius) / distance;
-		mSphere.sRadius = newRadius;
-		mSphere.sCenter += distanceVector * k;
+		float newRadius = (mSphere.radius + distance) * 0.5f;
+		float k = (newRadius - mSphere.radius) / distance;
+		mSphere.radius = newRadius;
+		mSphere.center += distanceVector * k;
 	}
 }
 
@@ -529,7 +529,7 @@ void APhysicsObject::DecomposeMesh(const TArray<FVector> &points)
 	ConvexHull tempHull = CreateConvexHull(points); // create a convex hull of full mesh
 	float concavity = FindConcavity(tempHull, points); // find concavity
 	if (concavity <= mMaxConcavity) { // if starting mesh is already convex, we can simply push it to the mesh vector as its only element
-		mMeshes.push_back(tempHull);
+		mMeshes.Add(tempHull);
 
 
 		return; // no need to continue function past this point
@@ -712,11 +712,22 @@ float APhysicsObject::FindConcavity(ConvexHull convexHull, const TArray<FVector>
 void APhysicsObject::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
-	if (Hit) return;
+	//if (Hit) return;
 	StepSimulation();
-	mNormalForce = { 0.0f, 0.0f ,0.0f };
-	mNormalForce += CheckForPlaneCollision();
-
+	//mNormalForce = { 0.0f, 0.0f ,0.0f };
+	//mNormalForce += CheckForPlaneCollision();
+	TArray<AActor*> FoundActors;
+	UGameplayStatics::GetAllActorsOfClass(GetWorld(), APhysicsObject::StaticClass(), FoundActors);
+	for (int i = 0; i < FoundActors.Num(); i++)
+	{
+		if (Cast<APhysicsObject>(FoundActors[i]) == nullptr) continue;
+		
+		// initial bounding sphere check
+		if (SphereOnSphereCheck(Cast<APhysicsObject>(FoundActors[i])->GetSphere())) {
+			// if bounding spheres are intersecting check for intersecting hulls
+			mHitPosition = SeparatingAxisTest(Cast<APhysicsObject>(FoundActors[i])->mMeshes);
+		}
+	}
 
 }
 
@@ -779,7 +790,7 @@ void APhysicsObject::StepSimulation()
 	mDisplacement = Snew;
 
 	SetActorLocation(mDisplacement);
-	mSphere.sCenter = mDisplacement;
+	mSphere.center = mDisplacement;
 
 	
 
@@ -821,13 +832,13 @@ void APhysicsObject::StepSimulation()
 	Snew = mDisplacement + (Vnew * mTimeStep * 100);
 
 	// predict approximately where the bounding sphere will be in the next timestep assuming mTimeStep is a constant value
-	mPredictedSphere.sCenter = Snew;
-	mPredictedSphere.sRadius = mSphere.sRadius;
+	mPredictedSphere.center = Snew;
+	mPredictedSphere.radius = mSphere.radius;
 
 	// find capsule swept volume
-	mCapsule.sStartPoint = mSphere.sCenter;
-	mCapsule.sEndPoint = mPredictedSphere.sCenter;
-	mCapsule.sRadius = mSphere.sRadius;
+	mCapsule.startPoint = mSphere.center;
+	mCapsule.endPoint = mPredictedSphere.center;
+	mCapsule.radius = mSphere.radius;
 	
 	if (mTimeStep != mDefaultTimeStep) {
 		mTimeStep = mDefaultTimeStep; // reset time step
@@ -845,13 +856,13 @@ FVector APhysicsObject::CheckForPlaneCollision()
 
 	float d = FVector::DotProduct(mSurfaceNormal, planeToSelfVector) / magnitudeNormal; // find magnitude of d 
 
-	FVector capsuleLength = mCapsule.sEndPoint - mCapsule.sStartPoint; // start point to end point vector
+	FVector capsuleLength = mCapsule.endPoint - mCapsule.startPoint; // start point to end point vector
 
 
-	if (d < capsuleLength.Size() + mCapsule.sRadius) // if true a collision will accur and VC will give the point of collision
+	if (d < capsuleLength.Size() + mCapsule.radius) // if true a collision will accur and VC will give the point of collision
 	{
 		// if this is a direct collision don't bother finding timestep
-		if (d <= mSphere.sRadius)
+		if (d <= mSphere.radius)
 		{
 			GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Yellow, TEXT("Collision"));
 			FVector UnitVAfterCollision = 2 * mSurfaceNormal *
@@ -863,7 +874,7 @@ FVector APhysicsObject::CheckForPlaneCollision()
 			return -FindGravityForce();
 		}
 		FVector target = mArbritraryPoint - GetActorLocation();
-		target -= mVelocity.GetSafeNormal() * mSphere.sRadius;
+		target -= mVelocity.GetSafeNormal() * mSphere.radius;
 		target /= 100;		
 		float VC = FVector::DotProduct(target, mVelocity) / mVelocity.Size(); // magnitude of VC (velocity needed to reach plane)
 		mTimeStep = abs(mTimeStep * (VC / mVelocity.Size()));
@@ -876,10 +887,74 @@ FVector APhysicsObject::CheckForPlaneCollision()
 	return FVector{ 0.0f,0.0f,0.0f };
 }
 
-bool APhysicsObject::SeparatingAxisTest(const TArray<ConvexHull>& other)
+TArray<ConvexHull> APhysicsObject::SeparatingAxisTest(const TArray<ConvexHull>& other)
 {
+	// go through each convex hull of both meshes and conduct separating axis test to find overlapping hulls
+	TArray<ConvexHull> overlappingHulls;
+	for (int i = 0; i < mMeshes.Num(); i++)
+	{
+		for (int j = 0; j < other.Num(); j++)
+		{
+			// do not compute separating axes if we already marked hull as overlapping
+			if (overlappingHulls.Contains(mMeshes[i])) continue;
 
-	return false;
+
+			Plane separatingHyperPlane;
+			separatingHyperPlane.pointOnPlane = other[j].centroid - (mMeshes[i].centroid / 2); // plane should be created halfway between both hulls
+			separatingHyperPlane.normal = (other[j].centroid - mMeshes[i].centroid).GetSafeNormal();
+
+			// use normal as perpendicular axis to plane (as its the normal)
+
+			// go through points to find supporting point that is farthest distance from centroid along perpendicular axis
+
+			FVector farthestPoint{ 0.0f, 0.0f, 0.0f };
+			for (int k = 0; k < mMeshes[i].points.Num(); k++)
+			{
+				// calculate projected vector onto plane normal
+				FVector projectedVector = separatingHyperPlane.normal * (FVector::DotProduct(mMeshes[i].points[k], separatingHyperPlane.normal) /
+					FVector::DotProduct(separatingHyperPlane.normal, separatingHyperPlane.normal));
+				if (!projectedVector.IsNearlyZero() && projectedVector.Size() > farthestPoint.Size()) farthestPoint = projectedVector;
+			}
+			// projected centroid onto normal
+			FVector projectedCentroidA = separatingHyperPlane.normal * (FVector::DotProduct(mMeshes[i].centroid, separatingHyperPlane.normal) /
+				FVector::DotProduct(separatingHyperPlane.normal, separatingHyperPlane.normal));
+
+			// first radius is the distance between projected centroid and farthest point
+			float rA = FVector::Distance(projectedCentroidA, farthestPoint);
+
+			farthestPoint = { 0.0f, 0.0f, 0.0f };
+			for (int k = 0; k < other[j].points.Num(); k++)
+			{
+				FVector projectedVector = separatingHyperPlane.normal * (FVector::DotProduct(other[j].points[k], separatingHyperPlane.normal) /
+					FVector::DotProduct(separatingHyperPlane.normal, separatingHyperPlane.normal));
+				if (!projectedVector.IsNearlyZero() && projectedVector.Size() > farthestPoint.Size()) farthestPoint = projectedVector;
+			}
+			FVector projectedCentroidB = separatingHyperPlane.normal * (FVector::DotProduct(other[j].centroid, separatingHyperPlane.normal) /
+				FVector::DotProduct(separatingHyperPlane.normal, separatingHyperPlane.normal));
+
+			float rB = FVector::Distance(projectedCentroidB, farthestPoint);
+
+			float projectedCentroidDistance = FVector::Distance(projectedCentroidA, projectedCentroidB);
+
+
+			// objects are not disjoint
+			if (rA + rB >= projectedCentroidDistance) {
+				// only add self hulls for collision response
+				overlappingHulls.Add(mMeshes[i]);
+			}
+		}
+	}
+	return overlappingHulls;
+}
+
+bool APhysicsObject::SphereOnSphereCheck(const Sphere& other)
+{
+	float squareDistance = FVector::DistSquared(mSphere.center, other.center);
+	float squareRadiiSum = (mSphere.radius + other.radius) * (mSphere.radius + other.radius);
+
+	if (squareRadiiSum >= squareDistance) return true; // collision
+
+	return false; // no collision
 }
 
 

@@ -5,21 +5,20 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "PhysicsObject.generated.h"
-#include <vector>
 
 class UStaticMeshComponent;
 class USphereComponent;
 class UCapsuleComponent;
 
 struct Sphere {
-	FVector sCenter;
-	float sRadius;
+	FVector center;
+	float radius;
 };
 
 struct Capsule {
-	FVector sStartPoint; // A
-	FVector sEndPoint; // B
-	float sRadius;
+	FVector startPoint; // A
+	FVector endPoint; // B
+	float radius;
 };
 
 struct Ray {
@@ -88,7 +87,7 @@ public:
 
 	// sub meshes
 	// used primarily to generate OBBs rather than for visuals, therefore, a mesh data structure is not used so as not to store redundant data
-	std::vector<ConvexHull> mMeshes; // may have one or multiple elements (dependant on if starting mesh is convex or concave) 
+	TArray<ConvexHull> mMeshes; // may have one or multiple elements (dependant on if starting mesh is convex or concave) 
 
 	//USphereComponent for initial capsule motion tests
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
@@ -125,6 +124,8 @@ private:
 	
 
 	TArray<FVector> mVertexPositions;
+
+	TArray<ConvexHull> mHitPosition;
 
 	// Physics properties
 	FVector mForce{ 0.0f, 0.0f, 0.0f }; // Force vector, aggregate all forces in this vector
@@ -164,7 +165,8 @@ protected:
 
 	// Collision check functions
 	FVector CheckForPlaneCollision();
-	bool SeparatingAxisTest(const TArray<ConvexHull>& other);
+	TArray<ConvexHull> SeparatingAxisTest(const TArray<ConvexHull>& other);
+	bool SphereOnSphereCheck(const Sphere& other);
 
 	// Simulation functions
 	FVector FindGravityForce();
@@ -179,5 +181,6 @@ protected:
 public:	
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
+	Sphere GetSphere() { return mSphere; }
 
 };
