@@ -70,6 +70,72 @@ struct Plane {
 	FVector pointOnPlane;
 };
 
+struct Tensor {
+	float tensor[9]; // 3x3 matrix	
+};
+
+struct Quaternion {
+	float x;
+	float y;
+	float z;
+	float w;
+
+	inline Quaternion QuatQuatMultiply(Quaternion q1, Quaternion q2)
+	{
+		Quaternion newQuat;
+		newQuat.w = q1.w * q2.w - q1.x * q2.x - q1.y * q2.y - q1.z * q2.z;
+		newQuat.x = q1.w * q2.x + q1.x * q2.w + q1.y * q2.z - q1.z * q2.y;
+		newQuat.y = q1.w * q2.y + q1.y * q2.w + q1.z * q2.x - q1.x * q2.z;
+		newQuat.z = q1.w * q2.z + q1.z * q2.w + q1.x * q2.y - q1.y * q2.x;
+		return newQuat;
+	}
+
+	inline Quaternion QuatVecMultiply(Quaternion q, FVector v)
+	{
+		Quaternion newQuat;
+		newQuat.w = -(q.x * v.X + q.y * v.Y + q.z * v.Z);
+		newQuat.x = q.w * v.X + q.y * v.Z - q.z * v.Y;
+		newQuat.y = q.w * v.Y + q.z * v.X - q.x * v.Z;
+		newQuat.z = q.w * v.Z + q.x * v.Y - q.y * v.X;
+		return newQuat;
+	}
+
+	inline Quaternion VecQuatMultiply(FVector v, Quaternion q)
+	{
+		Quaternion newQuat;
+		newQuat.w = -(q.x * v.X + q.y * v.Y + q.z * v.Z);
+		newQuat.x = q.w * v.X + q.z * v.Y - q.y * v.Z;
+		newQuat.y = q.w * v.Y + q.x * v.Z - q.z * v.X;
+		newQuat.z = q.w * v.Z + q.y * v.X - q.x * v.Y;
+		return newQuat;
+	}
+
+	inline Quaternion operator+(Quaternion q)
+	{
+		Quaternion newQuat;
+		newQuat.w = q.w + w;
+		newQuat.x = q.x + x;
+		newQuat.y = q.y + y;
+		newQuat.z = q.z + z;
+		return newQuat;
+	}
+
+	inline Quaternion operator/(float f)
+	{
+		Quaternion newQuat;
+		newQuat.w = w / f;
+		newQuat.x = x / f;
+		newQuat.y = y / f;
+		newQuat.z = z / f;
+		return newQuat;
+	}
+
+	float Magnitude()
+	{
+		return sqrt((w * w) + (x * x) + (y * y) + (z * z));
+	}
+};
+
 
 
 UCLASS()
@@ -121,7 +187,17 @@ private:
 
 	Capsule mCapsule;
 
-	
+	Quaternion mOrientation; // current orientation
+
+	// used for collision response
+
+	Tensor mIntertialTensor;
+
+	TArray<Tensor> mLocalInertias; // these will be simplified
+
+	FVector mCentreOfGravity;
+
+	// mesh data
 
 	TArray<FVector> mVertexPositions;
 
@@ -132,6 +208,8 @@ private:
 	FVector mAcceleration{ 0.0f, 0.0f, 0.0f }; // Acceleration measured in m/s/s
 	FVector mVelocity{ 0.0f, 0.0f, 0.0f }; // velocity (measured in m/s)
 	FVector mDisplacement = GetActorLocation(); // Displacement from orgin (measured in meters)
+	FVector mAngularVelocity{ 0.0f, 0.0f, 0.0f }; // angular velocity
+	FVector mMoments{ 0.0f, 0.0f, 0.0f };
 	FVector mNormalForce{ 0.0f, 0.0f, 0.0f };
 
 	// Object properties
@@ -148,6 +226,11 @@ protected:
 	virtual void BeginPlay() override;
 
 	bool GetVertexPositions();
+
+	// initial physics shape set up
+	FVector FindCentreOfGravity();
+	Tensor FindInertialTensor();
+	Tensor FindClosestMatchingTensor(ConvexHull convexHull);
 
 	// Set of functions for finding bounding sphere
 	void FindMostSeparatedPoints(int& min, int& max);
@@ -168,11 +251,22 @@ protected:
 	TArray<ConvexHull> SeparatingAxisTest(const TArray<ConvexHull>& other);
 	bool SphereOnSphereCheck(const Sphere& other);
 
+	// quartenion functions
+
+	Quaternion EulerToQuaternion(FVector rot);
+	FVector QuaternionToEuler(Quaternion quaternion);
+
+	// Response functions
+
+	FVector FindCollisionResponseMove();
+	Quaternion FindCollisionResponseRotation();
+	void ApplyResponse(FVector impulseMove, Quaternion impulseRot);
+
 	// Simulation functions
 	FVector FindGravityForce();
 	FVector FindDragForce(FVector velocity);
 	FVector FindWindForce(FVector windSpeed);
-	void StepSimulation(); // to find displacement & velocity from acceleration
+	void StepSimulation(float deltaTime); // to find displacement & velocity from acceleration
 	UFUNCTION(BlueprintCallable, Category = Getter)
 		FVector GetDisplacement() { return mDisplacement; }
 	UFUNCTION(BlueprintCallable, Category = Getter)

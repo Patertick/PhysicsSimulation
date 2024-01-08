@@ -128,6 +128,143 @@ bool APhysicsObject::GetVertexPositions()
 	return true;
 }
 
+FVector APhysicsObject::FindCentreOfGravity()
+{
+	FVector centre{ 0.0f, 0.0f, 0.0f };
+	for (int i = 0; i < mMeshes.Num(); i++)
+	{
+		centre += mMeshes[i].centroid;
+	}
+	centre /= mMeshes.Num();
+	return centre;
+}
+
+Tensor APhysicsObject::FindInertialTensor()
+{
+	float iXX{ 0 }, iYY{ 0 }, iZZ{ 0 }, iXY{ 0 }, iXZ{ 0 }, iYZ{ 0 };
+
+
+	// set up i values for inertia tensor
+	for (int i = 0; i < mMeshes.Num(); i++)
+	{
+		Tensor localInertia = FindClosestMatchingTensor(mMeshes[i]);
+
+		FVector localGravCoords = mMeshes[i].centroid - mCentreOfGravity; // vector from the centre of gravity to the centroid of the mesh
+
+		iXX += localInertia.tensor[0] + (mMass / mMeshes.Num()) * ((localGravCoords.Y * localGravCoords.Y) + (localGravCoords.Z * localGravCoords.Z));
+		iYY += localInertia.tensor[4] + (mMass / mMeshes.Num()) * ((localGravCoords.Z * localGravCoords.Z) + (localGravCoords.X * localGravCoords.X));
+		iZZ += localInertia.tensor[8] + (mMass / mMeshes.Num()) * ((localGravCoords.X * localGravCoords.X) + (localGravCoords.Y * localGravCoords.Y));
+		iXY += (mMass / mMeshes.Num()) * (localGravCoords.X * localGravCoords.Y);
+		iXZ += (mMass / mMeshes.Num()) * (localGravCoords.X * localGravCoords.Z);
+		iYZ += (mMass / mMeshes.Num()) * (localGravCoords.Y * localGravCoords.Z);
+	}
+
+	Tensor finalTensor;
+	finalTensor.tensor[0] = iXX;
+	finalTensor.tensor[1] = -iXY;
+	finalTensor.tensor[2] = -iXZ;
+	finalTensor.tensor[3] = -iXY;
+	finalTensor.tensor[4] = iYY;
+	finalTensor.tensor[5] = -iYZ;
+	finalTensor.tensor[6] = -iXZ;
+	finalTensor.tensor[7] = -iYZ;
+	finalTensor.tensor[8] = iZZ;
+
+
+	return finalTensor;
+}
+
+Tensor APhysicsObject::FindClosestMatchingTensor(ConvexHull convexHull)
+{
+	float averageAngularDifference = 0.0f; // find average angles between faces of the hull 
+	int32 num{ 0 };
+	for (int i = 0; i < convexHull.faces.Num(); i ++)
+	{
+		TArray<Face> sharingFaces;
+		for (int j = 1; j < convexHull.faces.Num(); j++)
+		{
+			if (i == j) continue; // dont test faces against themselves
+			// create an array of all faces that share an edge with faces[i]
+			if (convexHull.faces[i].a == convexHull.faces[j].a || convexHull.faces[i].a == convexHull.faces[j].b ||
+				convexHull.faces[i].a == convexHull.faces[j].c) {
+				if (!sharingFaces.Contains(convexHull.faces[j])) sharingFaces.Add(convexHull.faces[j]); // make sure we dont have redundant faces
+				continue;
+			}
+			else if (convexHull.faces[i].b == convexHull.faces[j].a || convexHull.faces[i].b == convexHull.faces[j].b || 
+				convexHull.faces[i].b == convexHull.faces[j].c) {
+				if (!sharingFaces.Contains(convexHull.faces[j])) sharingFaces.Add(convexHull.faces[j]);
+				continue;
+			}
+			else if (convexHull.faces[i].c == convexHull.faces[j].a || convexHull.faces[i].c == convexHull.faces[j].b || 
+				convexHull.faces[i].c == convexHull.faces[j].c) {
+				if (!sharingFaces.Contains(convexHull.faces[j])) sharingFaces.Add(convexHull.faces[j]);
+				continue;
+			}
+		}
+
+		for (int j = 0; j < sharingFaces.Num(); j++)
+		{
+			FVector firstNormal, secondNormal;
+			firstNormal = FVector::CrossProduct(convexHull.faces[i].a.edgeVector, convexHull.faces[i].b.edgeVector);
+			secondNormal = FVector::CrossProduct(convexHull.faces[i].a.edgeVector, convexHull.faces[i].b.edgeVector);
+
+			float angleBetweenNormals;
+
+			angleBetweenNormals = (FVector::DotProduct(firstNormal, secondNormal)) / (firstNormal.Size() * secondNormal.Size());
+			if (fabs(angleBetweenNormals) > 0.999999) continue;
+			angleBetweenNormals = acos(angleBetweenNormals);
+			angleBetweenNormals = (angleBetweenNormals * 180.0f) / PI; // convert to degrees
+			averageAngularDifference += angleBetweenNormals;
+			num++;
+		}
+	}
+
+	averageAngularDifference /= num;
+
+	int minY{ 0 }, maxY{ 0 }, minX{ 0 }, maxX{ 0 }, minZ{ 0 }, maxZ{ 0 };
+	FVector largestRadius{ 0.0f, 0.0f, 0.0f };
+	
+	for (int i = 0; convexHull.points.Num(); i++)
+	{
+		// find extremal x and y then use the distances as length and width
+		if (convexHull.points[i].X < convexHull.points[minX].X) minX = i;
+		if (convexHull.points[i].X > convexHull.points[maxX].X) maxX = i;
+		if (convexHull.points[i].Y < convexHull.points[minY].Y) minY = i;
+		if (convexHull.points[i].Y > convexHull.points[minY].Y) maxY = i;
+		if (convexHull.points[i].Z < convexHull.points[minZ].Z) minZ = i;
+		if (convexHull.points[i].Z > convexHull.points[minZ].Z) maxZ = i;
+
+		float newDistance = FVector::Distance(convexHull.points[i], convexHull.centroid);
+		float oldDistance = FVector::Distance(largestRadius, convexHull.centroid);
+
+		if (newDistance > oldDistance) largestRadius = convexHull.points[i];
+		
+
+	}
+
+	float width = abs(FVector::Distance(convexHull.points[minY], convexHull.points[maxY]));
+	float length = abs(FVector::Distance(convexHull.points[minX], convexHull.points[maxX]));
+	float height = abs(FVector::Distance(convexHull.points[minZ], convexHull.points[maxZ]));
+	float radius = abs(FVector::Distance(convexHull.centroid, largestRadius));
+
+	Tensor newTensor;
+
+	if (averageAngularDifference >= 90.0f) {
+		// use cuboid tensor
+		newTensor.tensor[0] = (1 / 12) * mMass * ((width * width) * (length * length)); // IXX
+		newTensor.tensor[4] = (1 / 12) * mMass * ((height * height) * (length * length)); // IYY
+		newTensor.tensor[8] = (1 / 12) * mMass * ((width * width) * (height * height)); // IZZ
+	}
+	else {
+		// use sphere tensor
+		newTensor.tensor[0] = (2 / 5) * mMass * (radius * radius);
+		newTensor.tensor[4] = (2 / 5) * mMass * (radius * radius);
+		newTensor.tensor[8] = (2 / 5) * mMass * (radius * radius);
+	}
+
+	return newTensor;
+}
+
 void APhysicsObject::FindMostSeparatedPoints(int& min, int& max)
 {
 	// compute most optimal bounding sphere using vertex positions
@@ -713,7 +850,8 @@ void APhysicsObject::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 	//if (Hit) return;
-	StepSimulation();
+
+	StepSimulation(DeltaTime);
 	//mNormalForce = { 0.0f, 0.0f ,0.0f };
 	//mNormalForce += CheckForPlaneCollision();
 	TArray<AActor*> FoundActors;
@@ -726,6 +864,11 @@ void APhysicsObject::Tick(float DeltaTime)
 		if (SphereOnSphereCheck(Cast<APhysicsObject>(FoundActors[i])->GetSphere())) {
 			// if bounding spheres are intersecting check for intersecting hulls
 			mHitPosition = SeparatingAxisTest(Cast<APhysicsObject>(FoundActors[i])->mMeshes);
+			if (mHitPosition.Num() <= 0) continue; // no collisions
+			else {
+				// collision response here
+			}
+
 		}
 	}
 
@@ -758,15 +901,20 @@ FVector APhysicsObject::FindWindForce(FVector windSpeed)
 	return windForce;
 }
 
-void APhysicsObject::StepSimulation()
+void APhysicsObject::StepSimulation(float deltaTime)
 {
 	FVector Vnew; // new velocity at time t + dt
 	FVector Snew; // new position at time t + dt
 	FVector k1, k2;
 	FVector F; // total force
 	FVector A; // acceleration
+	float dt;
+
+	dt = mTimeStep * deltaTime;
 
 	// Actual step simulation
+
+	// movement
 	
 	F = FindGravityForce() + mNormalForce + FindWindForce(mWindSpeed) + FindDragForce(mVelocity);
 
@@ -774,17 +922,17 @@ void APhysicsObject::StepSimulation()
 
 	A = F / mMass;
 
-	k1 = mTimeStep * A;
+	k1 = dt * A;
 
 	F = FindGravityForce() + mNormalForce + FindWindForce(mWindSpeed) + FindDragForce(mVelocity + k1);
 
 	A = F / mMass;
 
-	k2 = mTimeStep * A;
+	k2 = dt * A;
 
 	Vnew = mVelocity + ((k1 + k2) / 2);
 
-	Snew = mDisplacement + (Vnew * mTimeStep * 100); // convert to centimeters
+	Snew = mDisplacement + (Vnew * dt * 100); // convert to centimeters
 
 	mVelocity = Vnew;
 	mDisplacement = Snew;
@@ -792,57 +940,28 @@ void APhysicsObject::StepSimulation()
 	SetActorLocation(mDisplacement);
 	mSphere.center = mDisplacement;
 
-	
+	// rotation
 
+	float mag;
 
+	FMatrix interiaMat;
+	interiaMat.SetColumn(0, FVector(mIntertialTensor.tensor[0], mIntertialTensor.tensor[3], mIntertialTensor.tensor[6]));
+	interiaMat.SetColumn(1, FVector(mIntertialTensor.tensor[1], mIntertialTensor.tensor[4], mIntertialTensor.tensor[7]));
+	interiaMat.SetColumn(2, FVector(mIntertialTensor.tensor[2], mIntertialTensor.tensor[5], mIntertialTensor.tensor[8]));
 
+	mAngularVelocity += interiaMat.Inverse().TransformVector((mMoments - (mAngularVelocity ^ (interiaMat.TransformVector(mAngularVelocity)))) * (0.5f * dt));
+		
 
-	// find forces acting on object
-	F = FindGravityForce() + mNormalForce + FindWindForce(mWindSpeed) + FindDragForce(mVelocity) + mForce; // global forces + aggregate forces
+	Quaternion q;
+	q.QuatVecMultiply(mOrientation, mAngularVelocity * (0.5f * dt));
+	mOrientation = mOrientation + q;
 
+	mag = q.Magnitude();
+	if (mag != 0) q = q / mag;
 
-	// Normal force vector is - surface normal -N, this is a unit vector, to find desired magnitude, find amount of force exerted in direction of
-	// normal force vector and since this force acts in opposite direction to current force, take it away from Force vector
-	//F -= NormalForceVector * FVector::DotProduct(F, NormalForceVector);
-
-	A = F / mMass;
-
-	k1 = mTimeStep * A;
-
-	F = FindGravityForce() + mNormalForce + FindWindForce(mWindSpeed) + FindDragForce(mVelocity + k1) + mForce;
-
-	//F -= NormalForceVector * FVector::DotProduct(F, NormalForceVector);
-
-
-	A = F / mMass;
-
-	k2 = mTimeStep * A;
-
-	mForce = { 0.0f, 0.0f, 0.0f };
-
-	/*FString tempString = FString::SanitizeFloat(dt) + " Timestep (in seconds)";
-	GEngine->AddOnScreenDebugMessage(15, 15.0f, FColor::Yellow, *tempString);*/
-
-	// calculate new velocity at time t + dt
-
-	Vnew = mVelocity + ((k1 + k2) / 2);
-
-	// calculate new displacement at time t + dt
-
-	Snew = mDisplacement + (Vnew * mTimeStep * 100);
-
-	// predict approximately where the bounding sphere will be in the next timestep assuming mTimeStep is a constant value
-	mPredictedSphere.center = Snew;
-	mPredictedSphere.radius = mSphere.radius;
-
-	// find capsule swept volume
-	mCapsule.startPoint = mSphere.center;
-	mCapsule.endPoint = mPredictedSphere.center;
-	mCapsule.radius = mSphere.radius;
-	
-	if (mTimeStep != mDefaultTimeStep) {
-		mTimeStep = mDefaultTimeStep; // reset time step
-	}
+	FRotator u; // find euler angles
+	u = QuaternionToEuler(q).ToOrientationRotator();
+	SetActorRotation(u);
 
 }
 
@@ -955,6 +1074,95 @@ bool APhysicsObject::SphereOnSphereCheck(const Sphere& other)
 	if (squareRadiiSum >= squareDistance) return true; // collision
 
 	return false; // no collision
+}
+
+Quaternion APhysicsObject::EulerToQuaternion(FVector rot)
+{
+	Quaternion q;
+
+	double roll = (rot.X * PI) / 180.0f; // convert to radians
+	double pitch = (rot.Y * PI) / 180.0f;
+	double yaw = (rot.Z * PI) / 180.0f;
+
+	double cosYaw, cosPitch, cosRoll, sinYaw, sinPitch, sinRoll;
+	double cosYawCosPitch, sinYawSinPitch, cosYawSinPitch, sinYawCosPitch;
+
+	// define helper values (cos/sin roll pitch and yaw)
+
+	cosYaw = cos(0.5f * yaw);
+	cosPitch = cos(0.5f * pitch);
+	cosRoll = cos(0.5f * roll);
+	sinYaw = sin(0.5f * yaw);
+	sinPitch = sin(0.5f * pitch);
+	sinRoll = sin(0.5f * roll);
+
+	cosYawCosPitch = cosYaw * cosPitch;
+	sinYawSinPitch = sinYaw * sinPitch;
+	cosYawSinPitch = cosYaw * sinPitch;
+	sinYawCosPitch = sinYaw * cosPitch;
+
+	// construct quaternion
+
+	q.w = (float)(cosYawCosPitch * cosRoll + sinYawSinPitch * sinRoll);
+	q.x = (float)(cosYawCosPitch * sinRoll - sinYawSinPitch * cosRoll);
+	q.y = (float)(cosYawSinPitch * cosRoll + sinYawCosPitch * sinRoll);
+	q.z = (float)(sinYawCosPitch * cosRoll - cosYawSinPitch * sinRoll);
+
+	return q;
+}
+
+FVector APhysicsObject::QuaternionToEuler(Quaternion quaternion)
+{
+	double r11, r21, r31, r32, r33, r12, r13;
+	double q00, q11, q22, q33;
+	double tmp;
+	FVector u;
+
+	q00 = quaternion.w * quaternion.w;
+	q11 = quaternion.x * quaternion.x;
+	q22 = quaternion.y * quaternion.y;
+	q33 = quaternion.z * quaternion.z;
+
+	r11 = q00 + q11 - q22 - q33;
+	r21 = 2 * (quaternion.x * quaternion.y + quaternion.w * quaternion.z);
+	r31 = 2 * (quaternion.x * quaternion.z - quaternion.w * quaternion.y);
+	r32 = 2 * (quaternion.y * quaternion.z + quaternion.w * quaternion.x);
+	r33 = q00 - q11 - q22 + q33;
+
+	tmp = fabs(r31);
+	if (tmp > 0.999999)
+	{
+		r12 = 2 * (quaternion.x * quaternion.y - quaternion.w * quaternion.z);
+		r13 = 2 * (quaternion.x * quaternion.z + quaternion.w * quaternion.y);
+
+		u.X = (0.0f * 180.0f) / PI; // roll
+		u.Y = (((float)(-(PI / 2) * r31 / tmp)) * 180.0f) / PI; // pitch
+		u.Z = (((float)(atan2(-r12, -r31 * r13))) * 180.0f) / PI; // yaw
+		return u;
+	}
+
+	u.X = (((float)(atan2(r32, r33))) * 180.0f) / PI;
+	u.Y = (((float)(asin(-r31))) * 180.0f) / PI;
+	u.Z = (((float)(atan2(r21, r11))) * 180.0f) / PI;
+
+	return u;
+}
+
+FVector APhysicsObject::FindCollisionResponseMove()
+{
+	return FVector();
+}
+
+Quaternion APhysicsObject::FindCollisionResponseRotation()
+{
+
+
+	return Quaternion();
+}
+
+void APhysicsObject::ApplyResponse(FVector impulseMove, Quaternion impulseRot)
+{
+
 }
 
 
