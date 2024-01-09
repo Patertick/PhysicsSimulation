@@ -255,6 +255,8 @@ public:
 	// used primarily to generate OBBs rather than for visuals, therefore, a mesh data structure is not used so as not to store redundant data
 	TArray<ConvexHull> mMeshes; // may have one or multiple elements (dependant on if starting mesh is convex or concave) 
 
+
+
 	//USphereComponent for initial capsule motion tests
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 		USphereComponent* mBoundingVisualSphere;
@@ -302,6 +304,8 @@ private:
 	// mesh data
 
 	TArray<FVector> mVertexPositions;
+
+	TArray<Face> mFaceGeometry;
 
 	TArray<ConvexHull> mHitPosition;
 

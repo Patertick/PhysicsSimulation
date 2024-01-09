@@ -118,6 +118,22 @@ bool APhysicsObject::GetVertexPositions()
 		// Vertex array
 		const PxVec3* vertices = eachTriMesh->getVertices();
 
+		Face newFace;
+		Edge newEdgeA, newEdgeB, newEdgeC;
+		newEdgeA.a = P2UVector(vertices[0]);
+		newEdgeA.b = P2UVector(vertices[1]);
+		newEdgeA.edgeVector = newEdgeA.b - newEdgeA.a;
+		newEdgeB.a = P2UVector(vertices[0]);
+		newEdgeB.b = P2UVector(vertices[2]);
+		newEdgeB.edgeVector = newEdgeB.b - newEdgeB.a;
+		newEdgeC.a = P2UVector(vertices[2]);
+		newEdgeC.b = P2UVector(vertices[1]);
+		newEdgeC.edgeVector = newEdgeC.b - newEdgeC.a;
+		newFace.a = newEdgeA;
+		newFace.b = newEdgeB;
+		newFace.c = newEdgeC;
+		mFaceGeometry.Add(newFace);
+
 
 		for (PxU32 i = 0; i < vertexCount; i++) {
 			mVertexPositions.Add(transform.TransformPosition(P2UVector(vertices[i])));
@@ -726,25 +742,24 @@ Plane APhysicsObject::FindInflexFacePlane(const TArray<FVector> &points)
 	// find every face that share edges
 	// find surface normal of each face and reverse it
 	// if the angle between any of the normals is higher than 180 degrees, return current face plane
-	TArray<Face> faces = ConstructFaces(points);
 
-	for (int i = 0; i < faces.Num(); i++)
+	for (int i = 0; i < mFaceGeometry.Num(); i++)
 	{
 		TArray<Face> sharingFaces;
-		for (int j = 1; j < faces.Num(); j++)
+		for (int j = 1; j < mFaceGeometry.Num(); j++)
 		{
 			if (i == j) continue; // dont test faces against themselves
 			// create an array of all faces that share an edge with faces[i]
-			if (faces[i].a == faces[j].a || faces[i].a == faces[j].b || faces[i].a == faces[j].c) {
-				if (!sharingFaces.Contains(faces[j])) sharingFaces.Add(faces[j]); // make sure we dont have redundant faces
+			if (mFaceGeometry[i].a == mFaceGeometry[j].a || mFaceGeometry[i].a == mFaceGeometry[j].b || mFaceGeometry[i].a == mFaceGeometry[j].c) {
+				if (!sharingFaces.Contains(mFaceGeometry[j])) sharingFaces.Add(mFaceGeometry[j]); // make sure we dont have redundant faces
 				continue;
 			}
-			else if (faces[i].b == faces[j].a || faces[i].b == faces[j].b || faces[i].b == faces[j].c) {
-				if (!sharingFaces.Contains(faces[j])) sharingFaces.Add(faces[j]);
+			else if (mFaceGeometry[i].b == mFaceGeometry[j].a || mFaceGeometry[i].b == mFaceGeometry[j].b || mFaceGeometry[i].b == mFaceGeometry[j].c) {
+				if (!sharingFaces.Contains(mFaceGeometry[j])) sharingFaces.Add(mFaceGeometry[j]);
 				continue;
 			}
-			else if (faces[i].c == faces[j].a || faces[i].c == faces[j].b || faces[i].c == faces[j].c) {
-				if (!sharingFaces.Contains(faces[j])) sharingFaces.Add(faces[j]);
+			else if (mFaceGeometry[i].c == mFaceGeometry[j].a || mFaceGeometry[i].c == mFaceGeometry[j].b || mFaceGeometry[i].c == mFaceGeometry[j].c) {
+				if (!sharingFaces.Contains(mFaceGeometry[j])) sharingFaces.Add(mFaceGeometry[j]);
 				continue;
 			}
 		}
@@ -752,8 +767,8 @@ Plane APhysicsObject::FindInflexFacePlane(const TArray<FVector> &points)
 		for (int j = 0; j < sharingFaces.Num(); j++)
 		{
 			Plane first, second;
-			first.normal = FVector::CrossProduct(faces[i].a.edgeVector, faces[i].b.edgeVector).GetSafeNormal();
-			first.pointOnPlane = faces[i].a.a;
+			first.normal = FVector::CrossProduct(mFaceGeometry[i].a.edgeVector, mFaceGeometry[i].b.edgeVector).GetSafeNormal();
+			first.pointOnPlane = mFaceGeometry[i].a.a;
 
 			second.normal = FVector::CrossProduct(sharingFaces[j].a.edgeVector, sharingFaces[j].b.edgeVector).GetSafeNormal();
 			second.pointOnPlane = sharingFaces[j].a.a;
@@ -790,18 +805,17 @@ float APhysicsObject::FindConcavity(ConvexHull convexHull, const TArray<FVector>
 	// go through each point
 
 	float mostConcavePointValue = 0.0f;
-	TArray<Face> faces = ConstructFaces(points);
-	for (int i = 0; i < faces.Num(); i ++) // go through every triplet of points (triangles)
+	for (int i = 0; i < mFaceGeometry.Num(); i ++) // go through every triplet of points (triangles)
 	{
 		// get surface normal using cross product
-		FVector surfaceNormal = FVector::CrossProduct(faces[i].a.edgeVector, faces[i].b.edgeVector);
+		FVector surfaceNormal = FVector::CrossProduct(mFaceGeometry[i].a.edgeVector, mFaceGeometry[i].b.edgeVector);
 		surfaceNormal.Normalize();
 
 		
 		Ray surfaceRay;
 		surfaceRay.direction = surfaceNormal;
-		surfaceRay.origin = (faces[i].a.edgeVector + faces[i].b.edgeVector + faces[i].c.edgeVector) / 3; // use centre of surface as origin
-		surfaceRay.origin = surfaceRay.origin + faces[i].a.a;
+		surfaceRay.origin = (mFaceGeometry[i].a.edgeVector + mFaceGeometry[i].b.edgeVector + mFaceGeometry[i].c.edgeVector) / 3; // use centre of surface as origin
+		surfaceRay.origin = surfaceRay.origin + mFaceGeometry[i].a.a;
 		
 		for (int j = 0; j < convexHull.faces.Num(); j++)
 		{
@@ -1049,7 +1063,10 @@ TArray<ConvexHull> APhysicsObject::SeparatingAxisTest(const TArray<ConvexHull>& 
 
 			float projectedCentroidDistance = FVector::Distance(projectedCentroidA, projectedCentroidB);
 
-
+			FString tempString = FString::SanitizeFloat(rA + rB) + " Radius sum";
+			GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Yellow, *tempString);
+			tempString = FString::SanitizeFloat(projectedCentroidDistance) + " Distance";
+			GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Yellow, *tempString);
 			// objects are not disjoint
 			if (rA + rB >= projectedCentroidDistance) {
 				// only add self hulls for collision response
