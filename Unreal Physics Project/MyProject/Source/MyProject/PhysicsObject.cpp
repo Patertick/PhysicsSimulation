@@ -187,7 +187,8 @@ Tensor APhysicsObject::FindClosestMatchingTensor(ConvexHull convexHull)
 			// create an array of all faces that share an edge with faces[i]
 			if (convexHull.faces[i].a == convexHull.faces[j].a || convexHull.faces[i].a == convexHull.faces[j].b ||
 				convexHull.faces[i].a == convexHull.faces[j].c) {
-				if (!sharingFaces.Contains(convexHull.faces[j])) sharingFaces.Add(convexHull.faces[j]); // make sure we dont have redundant faces
+				if (!sharingFaces.Contains(convexHull.faces[j])) 
+					sharingFaces.Add(convexHull.faces[j]); // make sure we dont have redundant faces
 				continue;
 			}
 			else if (convexHull.faces[i].b == convexHull.faces[j].a || convexHull.faces[i].b == convexHull.faces[j].b || 
@@ -349,9 +350,9 @@ void APhysicsObject::GenerateSphere()
 
 ConvexHull APhysicsObject::CreateConvexHull(const TArray<FVector> &points)
 {
-	if (points.Num() <= 0) return; // avoid trying to create a non zero convex hull
 	TArray<FVector> tempPointSet = points; // only check points from this point set
 	ConvexHull newHull;
+	if (points.Num() <= 0) return newHull; // avoid trying to create a non zero convex hull
 	FVector centroid{ 0.0f, 0.0f, 0.0f };
 	// find centre point
 	for (int i = 0; i < tempPointSet.Num(); i++)
@@ -379,6 +380,7 @@ ConvexHull APhysicsObject::CreateConvexHull(const TArray<FVector> &points)
 	checkFace[5].normal = FVector{ -1.0f, 0.0f, 0.0f }; // left
 	checkFace[5].pointOnPlane = newHull.centroid;
 
+
 	TArray<FVector> extremalPoints;
 	for (int i = 0; i < 6; i++)
 	{
@@ -401,13 +403,14 @@ ConvexHull APhysicsObject::CreateConvexHull(const TArray<FVector> &points)
 		}
 	}
 
+
 	for (int i = 0; i < extremalPoints.Num(); i++)
 	{
 		// add extremal points to hull (these points will definitely be a part of the final hull)
 		newHull.points.Add(extremalPoints[i]);
 	}
 
-	newHull.faces = ConstructFaces(newHull);
+	newHull.faces = ConstructFaces(newHull.points);
 
 	// remove points inside current hull from inspection
 	for (int i = 0; i < tempPointSet.Num(); i++)
@@ -422,15 +425,16 @@ ConvexHull APhysicsObject::CreateConvexHull(const TArray<FVector> &points)
 			temp.pointOnPlane = newHull.faces[j].a.b;
 			if (!IsInFrontOfPlane(tempPointSet[i], temp)) numFacesBehind++;
 		}
-		if (numFacesBehind >= newHull.faces.Num()) tempPointSet.Remove(tempPointSet[i]); // if the point is behind all faces, remove from consideration
+		if (numFacesBehind >= newHull.faces.Num()) tempPointSet.RemoveAt(i); // if the point is behind all faces, remove from consideration
 	}
-
+	
 	extremalPoints.Empty();
 	// keep adding new points to hull until no points exist outside of hull
-	bool pointsExist;
+	bool pointsExist = true;
+	int count = 0;
 	do {
 		// find extremal points using each face as a new plane
-
+		count++;
 		for (int i = 0; i < newHull.faces.Num(); i++) 
 		{
 			extremalPoints.Add(newHull.faces[i].a.b);
@@ -475,11 +479,11 @@ ConvexHull APhysicsObject::CreateConvexHull(const TArray<FVector> &points)
 			continue;
 		}
 
-		newHull.faces = ConstructFaces(newHull);
+		newHull.faces = ConstructFaces(newHull.points);
 
 		for (int i = 0; i < tempPointSet.Num(); i++)
 		{
-			int numFacesBehind = 0;
+			int32 numFacesBehind = 0;
 			for (int j = 0; j < newHull.faces.Num(); j++)
 			{
 				Plane temp;
@@ -488,7 +492,7 @@ ConvexHull APhysicsObject::CreateConvexHull(const TArray<FVector> &points)
 				temp.pointOnPlane = newHull.faces[j].a.b;
 				if (!IsInFrontOfPlane(tempPointSet[i], temp)) numFacesBehind++;
 			}
-			if (numFacesBehind >= newHull.faces.Num()) tempPointSet.Remove(tempPointSet[i]);
+			if (numFacesBehind >= newHull.faces.Num()) tempPointSet.RemoveAt(i);
 		}
 
 	} while (pointsExist);
@@ -505,28 +509,28 @@ ConvexHull APhysicsObject::CreateConvexHull(const TArray<FVector> &points)
 	return newHull;
 }
 
-TArray<Face> APhysicsObject::ConstructFaces(ConvexHull convexHull)
+TArray<Face> APhysicsObject::ConstructFaces(const TArray<FVector>& points)
 {
 	// CONSTRUCT EDGES
 	// go through every point in the hull and construct four edges for each vertex (using closest vertices)
 	TArray<Edge> edges; // store all edges in an array
-	for (int i = 0; i < convexHull.points.Num(); i++)
+	for (int i = 0; i < points.Num(); i++)
 	{
 		TArray<FVector> closestPoints;
 		// only construct edges from 1st vertex onwards (first vertex will not form an edge with itself)
-		for (int j = 1; j < convexHull.points.Num(); j++)
+		for (int j = 1; j < points.Num(); j++)
 		{
-			if (closestPoints.Num() < 4) closestPoints.Add(convexHull.points[j]);
+			if (closestPoints.Num() < 4) closestPoints.Add(points[j]);
 			else {
 				for (int k = 0; k < closestPoints.Num(); k++)
 				{
 					// find distances between current closest point and new point
-					float newDistance = FVector::Distance(convexHull.points[j], convexHull.points[i]);
-					float oldDistance = FVector::Distance(closestPoints[k], convexHull.points[i]);
+					float newDistance = FVector::Distance(points[j], points[i]);
+					float oldDistance = FVector::Distance(closestPoints[k], points[i]);
 
 					// the lower distance is the new closest point
 					if (newDistance < oldDistance) { 
-						closestPoints[k] = convexHull.points[j]; 
+						closestPoints[k] = points[j]; 
 						continue;
 					}
 				}
@@ -536,7 +540,7 @@ TArray<Face> APhysicsObject::ConstructFaces(ConvexHull convexHull)
 		{
 			// add new edges for each closest point computed
 			Edge newEdge;
-			newEdge.a = convexHull.points[i];
+			newEdge.a = points[i];
 			newEdge.b = closestPoints[k];
 			edges.Add(newEdge);
 		}
@@ -548,7 +552,7 @@ TArray<Face> APhysicsObject::ConstructFaces(ConvexHull convexHull)
 		for (int j = 1; j < edges.Num(); j++)
 		{
 			// checks if two edges store the exact same vertices
-			if (edges[i] == edges[j]) edges.Remove(edges[j]);
+			if (edges[i] == edges[j]) edges.RemoveAt(j);
 			else continue;
 		}
 	}
@@ -652,7 +656,7 @@ TArray<Face> APhysicsObject::ConstructFaces(ConvexHull convexHull)
 	{
 		for (int j = 1; j < faces.Num(); j++)
 		{
-			if (faces[i] == faces[j]) faces.Remove(faces[j]);
+			if (faces[i] == faces[j]) faces.RemoveAt(j);
 			continue;
 		}
 	}
@@ -663,8 +667,12 @@ TArray<Face> APhysicsObject::ConstructFaces(ConvexHull convexHull)
 void APhysicsObject::DecomposeMesh(const TArray<FVector> &points)
 {
 	// create an approximate sub set of convex hulls that define the meshes collision volumes
+
 	ConvexHull tempHull = CreateConvexHull(points); // create a convex hull of full mesh
+	
 	float concavity = FindConcavity(tempHull, points); // find concavity
+	
+
 	if (concavity <= mMaxConcavity) { // if starting mesh is already convex, we can simply push it to the mesh vector as its only element
 		mMeshes.Add(tempHull);
 
@@ -718,27 +726,7 @@ Plane APhysicsObject::FindInflexFacePlane(const TArray<FVector> &points)
 	// find every face that share edges
 	// find surface normal of each face and reverse it
 	// if the angle between any of the normals is higher than 180 degrees, return current face plane
-	TArray<Face> faces;
-	for (int i = 0; i < points.Num(); i += 3)
-	{
-		Edge newEdgeA, newEdgeB, newEdgeC;
-		newEdgeA.a = points[i];
-		newEdgeA.b = points[i + 1];
-		newEdgeA.edgeVector = newEdgeA.b - newEdgeA.a;
-		newEdgeB.a = points[i];
-		newEdgeB.b = points[i + 2];
-		newEdgeB.edgeVector = newEdgeB.b - newEdgeB.a;
-		newEdgeC.a = points[i + 1];
-		newEdgeC.b = points[i + 2];
-		newEdgeC.edgeVector = newEdgeC.b - newEdgeC.a;
-
-		Face newFace;
-		newFace.a = newEdgeA;
-		newFace.b = newEdgeB;
-		newFace.c = newEdgeC;
-		faces.Add(newFace);
-
-	}
+	TArray<Face> faces = ConstructFaces(points);
 
 	for (int i = 0; i < faces.Num(); i++)
 	{
@@ -802,22 +790,24 @@ float APhysicsObject::FindConcavity(ConvexHull convexHull, const TArray<FVector>
 	// go through each point
 
 	float mostConcavePointValue = 0.0f;
-
-	for (int i = 0; i < points.Num(); i += 3) // go through every triplet of points (triangles)
+	TArray<Face> faces = ConstructFaces(points);
+	for (int i = 0; i < faces.Num(); i ++) // go through every triplet of points (triangles)
 	{
 		// get surface normal using cross product
-		FVector surfaceNormal = FVector::CrossProduct(points[i + 1] - points[i], points[i + 2] - points[i]);
+		FVector surfaceNormal = FVector::CrossProduct(faces[i].a.edgeVector, faces[i].b.edgeVector);
 		surfaceNormal.Normalize();
 
 		
 		Ray surfaceRay;
 		surfaceRay.direction = surfaceNormal;
-		surfaceRay.origin = (points[i] + points[i + 1] + points[i + 2]) / 3; // use centre of surface as origin
+		surfaceRay.origin = (faces[i].a.edgeVector + faces[i].b.edgeVector + faces[i].c.edgeVector) / 3; // use centre of surface as origin
+		surfaceRay.origin = surfaceRay.origin + faces[i].a.a;
 		
 		for (int j = 0; j < convexHull.faces.Num(); j++)
 		{
 			Plane facePlane;
 			facePlane.normal = FVector::CrossProduct(convexHull.faces[j].a.edgeVector, convexHull.faces[j].b.edgeVector);
+			facePlane.normal.Normalize();
 			facePlane.pointOnPlane = convexHull.faces[j].a.a;
 
 			if (IsInFrontOfPlane(surfaceRay.origin, facePlane)) continue; // rays can only project forwards, so if plane is behind origin, ray will never intersect
@@ -867,6 +857,8 @@ void APhysicsObject::Tick(float DeltaTime)
 			if (mHitPosition.Num() <= 0) continue; // no collisions
 			else {
 				// collision response here
+				GEngine->AddOnScreenDebugMessage(1, 15.0f, FColor::Yellow, "Collision");
+				FindCollisionResponseMove(Cast<APhysicsObject>(FoundActors[i]));
 			}
 
 		}
@@ -876,12 +868,16 @@ void APhysicsObject::Tick(float DeltaTime)
 
 FVector APhysicsObject::FindGravityForce()
 {
-	long double G = 6.67430 * powf(10, -11);
-	float EarthMass = 5.98 * powf(10, 24);
-	long double FGrav = G * mMass * EarthMass;
-	float DistanceToEarthCentre = 6.38 * powf(10, 6);
-	FGrav /= (DistanceToEarthCentre * DistanceToEarthCentre);
-	return FVector(0.0f, 0.0f, -FGrav); // Force of gravity acts downwards
+	if (mAffectedByGravity)
+	{
+		long double G = 6.67430 * powf(10, -11);
+		float EarthMass = 5.98 * powf(10, 24);
+		long double FGrav = G * mMass * EarthMass;
+		float DistanceToEarthCentre = 6.38 * powf(10, 6);
+		FGrav /= (DistanceToEarthCentre * DistanceToEarthCentre);
+		return FVector(0.0f, 0.0f, -FGrav); // Force of gravity acts downwards
+	}
+	return FVector{ 0.0f, 0.0f ,0.0f };
 }
 
 FVector APhysicsObject::FindDragForce(FVector velocity)
@@ -917,8 +913,6 @@ void APhysicsObject::StepSimulation(float deltaTime)
 	// movement
 	
 	F = FindGravityForce() + mNormalForce + FindWindForce(mWindSpeed) + FindDragForce(mVelocity);
-
-	GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Yellow, mNormalForce.ToString());
 
 	A = F / mMass;
 
@@ -1148,9 +1142,92 @@ FVector APhysicsObject::QuaternionToEuler(Quaternion quaternion)
 	return u;
 }
 
-FVector APhysicsObject::FindCollisionResponseMove()
+void APhysicsObject::FindCollisionResponseMove(APhysicsObject* other)
 {
-	return FVector();
+	// add velocity for each hit position
+	for (int i = 0; i < mHitPosition.Num(); i++)
+	{
+		bool doOnce = true;
+		for (int j = 0; j < other->mHitPosition.Num(); j++)
+		{
+			float smallestDistance{ 1000.0f };
+			FVector intersectionPoint;
+			FVector relativeVelocity;
+			FVector collisionNormal;
+
+			// find positions on hull closest to the other
+			// depending on distance this could be the point of collision
+			Ray centroidToCentroidRay;
+			centroidToCentroidRay.direction = (other->mHitPosition[j].centroid - mHitPosition[i].centroid).GetSafeNormal();
+			centroidToCentroidRay.origin = mHitPosition[i].centroid;
+
+			FVector possiblePointOfContact;
+
+			if (doOnce)
+			{
+				for (int k = 0; k < mHitPosition[i].faces.Num(); k++)
+				{
+					Plane facePlane;
+					facePlane.normal = FVector::CrossProduct(mHitPosition[i].faces[k].a.edgeVector, mHitPosition[i].faces[k].b.edgeVector);
+					facePlane.pointOnPlane = mHitPosition[i].faces[k].a.a;
+
+					if (IsInFrontOfPlane(centroidToCentroidRay.origin, facePlane)) continue; // rays can only project forwards, so if plane is behind origin, ray will never intersect
+
+					float projection = FVector::DotProduct(facePlane.normal, centroidToCentroidRay.direction);
+					if (abs(projection) > 0.0001f) // make sure projection is not zero, this means the ray is perpendicular to the plane and never intersects
+					{
+						centroidToCentroidRay.t = FVector::DotProduct(facePlane.pointOnPlane - centroidToCentroidRay.origin, facePlane.normal) / projection;
+						if (centroidToCentroidRay.t != 0) continue;
+
+						// we have the possible point of contact
+
+						possiblePointOfContact = centroidToCentroidRay.origin + (centroidToCentroidRay.direction * centroidToCentroidRay.t);
+					}
+				}
+			}
+			
+			doOnce = false;
+
+			for (int k = 0; k < other->mHitPosition[j].faces.Num(); k++)
+			{
+				Plane facePlane;
+				facePlane.normal = FVector::CrossProduct(other->mHitPosition[j].faces[k].a.edgeVector, other->mHitPosition[j].faces[k].b.edgeVector);
+				facePlane.pointOnPlane = other->mHitPosition[j].faces[k].a.a;
+
+				if (IsInFrontOfPlane(centroidToCentroidRay.origin, facePlane)) continue; // rays can only project forwards, so if plane is behind origin, ray will never intersect
+
+				float projection = FVector::DotProduct(facePlane.normal, centroidToCentroidRay.direction);
+				if (abs(projection) > 0.0001f) // make sure projection is not zero, this means the ray is perpendicular to the plane and never intersects
+				{
+					centroidToCentroidRay.t = FVector::DotProduct(facePlane.pointOnPlane - centroidToCentroidRay.origin, facePlane.normal) / projection;
+					if (centroidToCentroidRay.t != 0) continue;
+
+					// we have the possible point of contact
+
+					FVector pointOfContact = centroidToCentroidRay.origin + (centroidToCentroidRay.direction * centroidToCentroidRay.t);
+					float distance = abs(FVector::Distance(pointOfContact, possiblePointOfContact));
+
+					if (distance < smallestDistance) {
+						smallestDistance = distance;
+						intersectionPoint = pointOfContact;
+						collisionNormal = facePlane.normal;
+					}
+				}
+			}
+
+			// project velocity onto collision normal for relative velocity
+			FVector centroidToPointOfCollision = intersectionPoint - mHitPosition[i].centroid;
+			relativeVelocity = (FVector::DotProduct(mVelocity, collisionNormal) / mVelocity.Size()) *  centroidToPointOfCollision;
+
+			float impulseMag;
+
+			impulseMag = ((-(1 + mCoefficientOfRestitution) * (relativeVelocity * collisionNormal)) /
+				((collisionNormal * collisionNormal) * (1 / mMass + 1 / other->mMass))).Size();
+
+			mVelocity += (impulseMag * collisionNormal) / mMass;
+			other->mVelocity -= (impulseMag * collisionNormal) / other->mMass;
+		}
+	}
 }
 
 Quaternion APhysicsObject::FindCollisionResponseRotation()
@@ -1159,10 +1236,4 @@ Quaternion APhysicsObject::FindCollisionResponseRotation()
 
 	return Quaternion();
 }
-
-void APhysicsObject::ApplyResponse(FVector impulseMove, Quaternion impulseRot)
-{
-
-}
-
 

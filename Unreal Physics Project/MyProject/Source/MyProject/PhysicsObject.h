@@ -32,10 +32,34 @@ struct Edge {
 	FVector b;
 	FVector edgeVector;
 
-	bool operator==(Edge& other)
+	friend bool operator==(Edge& self, Edge& other)
 	{
-		if (a == other.a || a == other.b) {
-			if (b == other.a || b == other.b) return true;
+		if (self.a == other.a || self.a == other.b) {
+			if (self.b == other.a || self.b == other.b) return true;
+		}
+		return false;
+	}
+
+	friend bool operator==(Edge& self, const Edge& other)
+	{
+		if (self.a == other.a || self.a == other.b) {
+			if (self.b == other.a || self.b == other.b) return true;
+		}
+		return false;
+	}
+
+	friend bool operator==(const Edge& self, Edge& other)
+	{
+		if (self.a == other.a || self.a == other.b) {
+			if (self.b == other.a || self.b == other.b) return true;
+		}
+		return false;
+	}
+
+	friend bool operator==(const Edge& self, const Edge& other)
+	{
+		if (self.a == other.a || self.a == other.b) {
+			if (self.b == other.a || self.b == other.b) return true;
 		}
 		return false;
 	}
@@ -46,13 +70,49 @@ struct Face {
 	Edge b;
 	Edge c;
 	bool isNew{ true };
-	bool operator==(Face& other)
+	friend bool operator==(Face& self, Face& other)
 	{
-		if (a == other.a || a == other.b || a == other.c)
+		if (self.a == other.a || self.a == other.b || self.a == other.c)
 		{
-			if (b == other.a || b == other.b || b == other.c)
+			if (self.b == other.a || self.b == other.b || self.b == other.c)
 			{
-				if (c == other.a || c == other.b || c == other.c) return true;
+				if (self.c == other.a || self.c == other.b || self.c == other.c) return true;
+			}
+		}
+		return false;
+	}
+
+	friend bool operator==(const Face& self, Face& other)
+	{
+		if (self.a == other.a || self.a == other.b || self.a == other.c)
+		{
+			if (self.b == other.a || self.b == other.b || self.b == other.c)
+			{
+				if (self.c == other.a || self.c == other.b || self.c == other.c) return true;
+			}
+		}
+		return false;
+	}
+
+	friend bool operator==(Face& self, const Face& other)
+	{
+		if (self.a == other.a || self.a == other.b || self.a == other.c)
+		{
+			if (self.b == other.a || self.b == other.b || self.b == other.c)
+			{
+				if (self.c == other.a || self.c == other.b || self.c == other.c) return true;
+			}
+		}
+		return false;
+	}
+
+	friend bool operator==(const Face& self, const Face& other)
+	{
+		if (self.a == other.a || self.a == other.b || self.a == other.c)
+		{
+			if (self.b == other.a || self.b == other.b || self.b == other.c)
+			{
+				if (self.c == other.a || self.c == other.b || self.c == other.c) return true;
 			}
 		}
 		return false;
@@ -63,6 +123,46 @@ struct ConvexHull {
 	TArray<Face> faces; // faces that make up convex hull of point sets
 	TArray<FVector> points; // all vertices that make up the hull
 	FVector centroid; // centre of hull
+
+	friend bool operator==(ConvexHull& self, ConvexHull& other)
+	{
+		if (self.faces == other.faces) {
+			if (self.points == other.points) {
+				if (self.centroid == other.centroid) return true;
+			}
+		}
+		return false;
+	}
+
+	friend bool operator==(ConvexHull& self, const ConvexHull& other)
+	{
+		if (self.faces == other.faces) {
+			if (self.points == other.points) {
+				if (self.centroid == other.centroid) return true;
+			}
+		}
+		return false;
+	}
+
+	friend bool operator==(const ConvexHull& self, ConvexHull& other)
+	{
+		if (self.faces == other.faces) {
+			if (self.points == other.points) {
+				if (self.centroid == other.centroid) return true;
+			}
+		}
+		return false;
+	}
+
+	friend bool operator==(const ConvexHull& self, const ConvexHull& other)
+	{
+		if (self.faces == other.faces) {
+			if (self.points == other.points) {
+				if (self.centroid == other.centroid) return true;
+			}
+		}
+		return false;
+	}
 };
 
 struct Plane {
@@ -159,6 +259,8 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 		USphereComponent* mBoundingVisualSphere;
 	// physics properties
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsProperties)
+		bool mAffectedByGravity{ true };
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = PhysicsProperties)
 		float mCoefficientOfDrag{ 0.1 };
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsProperties)
@@ -240,7 +342,7 @@ protected:
 
 	// Functions for use in creation of convex sub meshes and resultant OBBs
 	ConvexHull CreateConvexHull(const TArray<FVector> &points);
-	TArray<Face> ConstructFaces(ConvexHull convexHull);
+	TArray<Face> ConstructFaces(const TArray<FVector> &points);
 	void DecomposeMesh(const TArray<FVector> &points);
 	bool IsInFrontOfPlane(FVector point, Plane plane);
 	Plane FindInflexFacePlane(const TArray<FVector> &points);
@@ -258,9 +360,8 @@ protected:
 
 	// Response functions
 
-	FVector FindCollisionResponseMove();
+	void FindCollisionResponseMove(APhysicsObject* other);
 	Quaternion FindCollisionResponseRotation();
-	void ApplyResponse(FVector impulseMove, Quaternion impulseRot);
 
 	// Simulation functions
 	FVector FindGravityForce();
