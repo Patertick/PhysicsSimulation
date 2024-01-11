@@ -409,10 +409,8 @@ ConvexHull APhysicsObject::CreateConvexHull(const TArray<FVector> &points)
 		{
 			if (IsInFrontOfPlane(tempPointSet[i], checkFace[j])) {
 				// find if new point is further than currently checked point
-				FVector P = tempPointSet[i] - checkFace[j].pointOnPlane;
-				float newDistance = abs(FVector::DotProduct(P, checkFace[j].normal));
-				P = extremalPoints[j] - checkFace[j].pointOnPlane;
-				float oldDistance = abs(FVector::DotProduct(P, checkFace[j].normal));
+				float newDistance = abs(FVector::DotProduct(tempPointSet[i], checkFace[j].normal));
+				float oldDistance = abs(FVector::DotProduct(extremalPoints[j], checkFace[j].normal));
 
 				if (newDistance > oldDistance) extremalPoints[j] = tempPointSet[i]; // if new distance is greater than old distance, set new extremal point
 			}
@@ -425,7 +423,6 @@ ConvexHull APhysicsObject::CreateConvexHull(const TArray<FVector> &points)
 		// add extremal points to hull (these points will definitely be a part of the final hull)
 		newHull.points.Add(extremalPoints[i]);
 	}
-
 	newHull.faces = ConstructFaces(newHull.points);
 
 	// remove points inside current hull from inspection
@@ -469,10 +466,8 @@ ConvexHull APhysicsObject::CreateConvexHull(const TArray<FVector> &points)
 					temp.normal.Normalize();
 					temp.pointOnPlane = newHull.faces[j].a.b;
 					if (IsInFrontOfPlane(tempPointSet[i], temp)) {
-						FVector P = tempPointSet[i] - checkFace[j].pointOnPlane;
-						float newDistance = abs(FVector::DotProduct(P, checkFace[j].normal));
-						P = extremalPoints[j] - checkFace[j].pointOnPlane;
-						float oldDistance = abs(FVector::DotProduct(P, checkFace[j].normal));
+						float newDistance = abs(FVector::DotProduct(tempPointSet[i], checkFace[j].normal));
+						float oldDistance = abs(FVector::DotProduct(extremalPoints[j], checkFace[j].normal));
 
 						if (newDistance > oldDistance) extremalPoints[j] = tempPointSet[i];
 					}
@@ -536,6 +531,8 @@ TArray<Face> APhysicsObject::ConstructFaces(const TArray<FVector>& points)
 		// only construct edges from 1st vertex onwards (first vertex will not form an edge with itself)
 		for (int j = 1; j < points.Num(); j++)
 		{
+			if (points[i] == points[j]) continue;
+
 			if (closestPoints.Num() < 4) closestPoints.Add(points[j]);
 			else {
 				for (int k = 0; k < closestPoints.Num(); k++)
@@ -558,18 +555,7 @@ TArray<Face> APhysicsObject::ConstructFaces(const TArray<FVector>& points)
 			Edge newEdge;
 			newEdge.a = points[i];
 			newEdge.b = closestPoints[k];
-			edges.Add(newEdge);
-		}
-	}
-
-	// delete redundant edges from array
-	for (int i = 0; i < edges.Num(); i++)
-	{
-		for (int j = 1; j < edges.Num(); j++)
-		{
-			// checks if two edges store the exact same vertices
-			if (edges[i] == edges[j]) edges.RemoveAt(j);
-			else continue;
+			if (!edges.Contains(newEdge)) edges.Add(newEdge);
 		}
 	}
 
@@ -612,14 +598,14 @@ TArray<Face> APhysicsObject::ConstructFaces(const TArray<FVector>& points)
 					newFace.a = edges[i];
 					newFace.b = edges[k];
 					newFace.c = potentialV3Edge[j];
-					faces.Add(newFace);
+					if (!faces.Contains(newFace)) faces.Add(newFace);
 				}
 				else if (edges[k].b == potentialV3[j] && edges[k].a == V1) {
 					Face newFace;
 					newFace.a = edges[i];
 					newFace.b = edges[k];
 					newFace.c = potentialV3Edge[j];
-					faces.Add(newFace);
+					if (!faces.Contains(newFace)) faces.Add(newFace);
 				}
 				
 			}
@@ -653,30 +639,19 @@ TArray<Face> APhysicsObject::ConstructFaces(const TArray<FVector>& points)
 					newFace.a = edges[i];
 					newFace.b = edges[k];
 					newFace.c = potentialV3Edge[j];
-					faces.Add(newFace);
+					if (!faces.Contains(newFace)) faces.Add(newFace);
 				}
 				else if (edges[k].b == potentialV3[j] && edges[k].a == V2) {
 					Face newFace;
 					newFace.a = edges[i];
 					newFace.b = edges[k];
 					newFace.c = potentialV3Edge[j];
-					faces.Add(newFace);
+					if(!faces.Contains(newFace)) faces.Add(newFace);
 				}
 
 			}
 		}
 	}
-
-	// delete redundant faces
-	for (int i = 0; i < faces.Num(); i++)
-	{
-		for (int j = 1; j < faces.Num(); j++)
-		{
-			if (faces[i] == faces[j]) faces.RemoveAt(j);
-			continue;
-		}
-	}
-	
 	return faces;
 }
 
@@ -1017,60 +992,103 @@ FVector APhysicsObject::CheckForPlaneCollision()
 TArray<ConvexHull> APhysicsObject::SeparatingAxisTest(const TArray<ConvexHull>& other)
 {
 	// go through each convex hull of both meshes and conduct separating axis test to find overlapping hulls
+	// test every edge-edge permutation as possible collision axes
+	TArray<Plane> testPlanes;
+	TArray<Edge> firstMeshEdges;
+	TArray<Edge> secondMeshEdges;
+	// get all unique edges from first mesh
+	for (int i = 0; i < mMeshes.Num(); i++)
+	{
+		for (int j = 0; j < mMeshes[i].faces.Num(); j++)
+		{
+			if (!firstMeshEdges.Contains(mMeshes[i].faces[j].a)) firstMeshEdges.Add(mMeshes[i].faces[j].a);
+			if (!firstMeshEdges.Contains(mMeshes[i].faces[j].b)) firstMeshEdges.Add(mMeshes[i].faces[j].b);
+			if (!firstMeshEdges.Contains(mMeshes[i].faces[j].c)) firstMeshEdges.Add(mMeshes[i].faces[j].c);
+		}
+	}
+
+	// get all unique edges from second mesh
+	for (int i = 0; i < other.Num(); i++)
+	{
+		for (int j = 0; j < other[i].faces.Num(); j++)
+		{
+			if (!secondMeshEdges.Contains(other[i].faces[j].a)) secondMeshEdges.Add(other[i].faces[j].a);
+			if (!secondMeshEdges.Contains(other[i].faces[j].b)) secondMeshEdges.Add(other[i].faces[j].b);
+			if (!secondMeshEdges.Contains(other[i].faces[j].c)) secondMeshEdges.Add(other[i].faces[j].c);
+		}
+	}
+
+	// get all unique planes from edge cross products
+	for (int i = 0; i < firstMeshEdges.Num(); i++)
+	{
+		for (int j = 0; j < secondMeshEdges.Num(); j++)
+		{
+			Plane newPlane;
+			newPlane.normal = FVector::CrossProduct(firstMeshEdges[i].b - firstMeshEdges[i].a, secondMeshEdges[j].b - secondMeshEdges[j].a);
+			newPlane.normal.Normalize();
+			newPlane.pointOnPlane = FVector(0.0f, 0.0f, 0.0f);
+			// in SAT (Separating Axis Test) normals are the only thing being tested, hence all planes containing the same normal value will be ignored
+			if (!testPlanes.Contains(newPlane) && !newPlane.normal.IsZero()) {
+				//GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Yellow, newPlane.normal.ToString() + " Plane normal");
+				newPlane.pointOnPlane = firstMeshEdges[i].a;
+				testPlanes.Add(newPlane);
+			}
+		}
+	}
+	
+
 	TArray<ConvexHull> overlappingHulls;
 	for (int i = 0; i < mMeshes.Num(); i++)
 	{
 		for (int j = 0; j < other.Num(); j++)
 		{
-			// do not compute separating axes if we already marked hull as overlapping
-			if (overlappingHulls.Contains(mMeshes[i])) continue;
-
-
-			Plane separatingHyperPlane;
-			separatingHyperPlane.pointOnPlane = other[j].centroid - (mMeshes[i].centroid / 2); // plane should be created halfway between both hulls
-			separatingHyperPlane.normal = (other[j].centroid - mMeshes[i].centroid).GetSafeNormal();
-
-			// use normal as perpendicular axis to plane (as its the normal)
-
-			// go through points to find supporting point that is farthest distance from centroid along perpendicular axis
-
-			FVector farthestPoint{ 0.0f, 0.0f, 0.0f };
-			for (int k = 0; k < mMeshes[i].points.Num(); k++)
+			for (int p = 0; p < testPlanes.Num(); p++)
 			{
-				// calculate projected vector onto plane normal
-				FVector projectedVector = separatingHyperPlane.normal * (FVector::DotProduct(mMeshes[i].points[k], separatingHyperPlane.normal) /
-					FVector::DotProduct(separatingHyperPlane.normal, separatingHyperPlane.normal));
-				if (!projectedVector.IsNearlyZero() && projectedVector.Size() > farthestPoint.Size()) farthestPoint = projectedVector;
-			}
-			// projected centroid onto normal
-			FVector projectedCentroidA = separatingHyperPlane.normal * (FVector::DotProduct(mMeshes[i].centroid, separatingHyperPlane.normal) /
-				FVector::DotProduct(separatingHyperPlane.normal, separatingHyperPlane.normal));
 
-			// first radius is the distance between projected centroid and farthest point
-			float rA = FVector::Distance(projectedCentroidA, farthestPoint);
+				// use normal as perpendicular axis to plane (as its the normal)
 
-			farthestPoint = { 0.0f, 0.0f, 0.0f };
-			for (int k = 0; k < other[j].points.Num(); k++)
-			{
-				FVector projectedVector = separatingHyperPlane.normal * (FVector::DotProduct(other[j].points[k], separatingHyperPlane.normal) /
-					FVector::DotProduct(separatingHyperPlane.normal, separatingHyperPlane.normal));
-				if (!projectedVector.IsNearlyZero() && projectedVector.Size() > farthestPoint.Size()) farthestPoint = projectedVector;
-			}
-			FVector projectedCentroidB = separatingHyperPlane.normal * (FVector::DotProduct(other[j].centroid, separatingHyperPlane.normal) /
-				FVector::DotProduct(separatingHyperPlane.normal, separatingHyperPlane.normal));
+				// go through points to find supporting point that is farthest distance from centroid along perpendicular axis
 
-			float rB = FVector::Distance(projectedCentroidB, farthestPoint);
+				FVector farthestPoint{ 0.0f, 0.0f, 0.0f };
+				for (int k = 0; k < mMeshes[i].points.Num(); k++)
+				{
+					// calculate projected vector onto plane normal
+					FVector projectedVector = testPlanes[p].normal * (FVector::DotProduct(mMeshes[i].points[k], testPlanes[p].normal) /
+						FVector::DotProduct(testPlanes[p].normal, testPlanes[p].normal));
+					if (!projectedVector.IsNearlyZero() && projectedVector.Size() > farthestPoint.Size()) farthestPoint = projectedVector;
+				}
+				// projected centroid onto normal
+				FVector projectedCentroidA = testPlanes[p].normal * (FVector::DotProduct(mMeshes[i].centroid, testPlanes[p].normal) /
+					FVector::DotProduct(testPlanes[p].normal, testPlanes[p].normal));
 
-			float projectedCentroidDistance = FVector::Distance(projectedCentroidA, projectedCentroidB);
+				// first radius is the distance between projected centroid and farthest point
+				float rA = FVector::Distance(projectedCentroidA, farthestPoint);
 
-			FString tempString = FString::SanitizeFloat(rA + rB) + " Radius sum";
-			GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Yellow, *tempString);
-			tempString = FString::SanitizeFloat(projectedCentroidDistance) + " Distance";
-			GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Yellow, *tempString);
-			// objects are not disjoint
-			if (rA + rB >= projectedCentroidDistance) {
-				// only add self hulls for collision response
-				overlappingHulls.Add(mMeshes[i]);
+				farthestPoint = { 0.0f, 0.0f, 0.0f };
+				for (int k = 0; k < other[j].points.Num(); k++)
+				{
+					FVector projectedVector = testPlanes[p].normal * (FVector::DotProduct(other[j].points[k], testPlanes[p].normal) /
+						FVector::DotProduct(testPlanes[p].normal, testPlanes[p].normal));
+					if (!projectedVector.IsNearlyZero() && projectedVector.Size() > farthestPoint.Size()) farthestPoint = projectedVector;
+				}
+				FVector projectedCentroidB = testPlanes[p].normal * (FVector::DotProduct(other[j].centroid, testPlanes[p].normal) /
+					FVector::DotProduct(testPlanes[p].normal, testPlanes[p].normal));
+
+				float rB = FVector::Distance(projectedCentroidB, farthestPoint);
+
+				float projectedCentroidDistance = FVector::Distance(projectedCentroidA, projectedCentroidB);
+
+				FString tempString = FString::SanitizeFloat(rA + rB) + " Radius sum";
+				GEngine->AddOnScreenDebugMessage(101, 15.0f, FColor::Yellow, *tempString);
+				tempString = FString::SanitizeFloat(projectedCentroidDistance) + " Distance";
+				GEngine->AddOnScreenDebugMessage(201, 15.0f, FColor::Yellow, *tempString);
+				// objects are not disjoint
+				if (rA + rB >= projectedCentroidDistance) {
+					// store overlapping hulls as pairs
+					GEngine->AddOnScreenDebugMessage(202, 15.0f, FColor::Yellow, "COLLISION SAT");
+					overlappingHulls.Add(mMeshes[i]);
+					overlappingHulls.Add(other[j]);
+				}
 			}
 		}
 	}
@@ -1162,90 +1180,81 @@ FVector APhysicsObject::QuaternionToEuler(Quaternion quaternion)
 void APhysicsObject::FindCollisionResponseMove(APhysicsObject* other)
 {
 	// add velocity for each hit position
-	for (int i = 0; i < mHitPosition.Num(); i++)
+	for (int i = 0; i < mHitPosition.Num(); i += 2)
 	{
-		bool doOnce = true;
-		for (int j = 0; j < other->mHitPosition.Num(); j++)
+		FVector intersectionPoint;
+		FVector relativeVelocity;
+		FVector collisionNormal;
+
+		// find positions on hull closest to the other
+		// depending on distance this could be the point of collision
+		Ray centroidToCentroidRay;
+		centroidToCentroidRay.direction = (mHitPosition[i + 1].centroid - mHitPosition[i].centroid).GetSafeNormal();
+		centroidToCentroidRay.origin = mHitPosition[i].centroid;
+
+		for (int k = 0; k < mHitPosition[i].faces.Num(); k++)
 		{
-			float smallestDistance{ 1000.0f };
-			FVector intersectionPoint;
-			FVector relativeVelocity;
-			FVector collisionNormal;
+			Plane facePlane;
+			facePlane.normal = FVector::CrossProduct(mHitPosition[i].faces[k].a.edgeVector, mHitPosition[i].faces[k].b.edgeVector);
+			facePlane.pointOnPlane = mHitPosition[i].faces[k].a.a;
 
-			// find positions on hull closest to the other
-			// depending on distance this could be the point of collision
-			Ray centroidToCentroidRay;
-			centroidToCentroidRay.direction = (other->mHitPosition[j].centroid - mHitPosition[i].centroid).GetSafeNormal();
-			centroidToCentroidRay.origin = mHitPosition[i].centroid;
+			if (IsInFrontOfPlane(centroidToCentroidRay.origin, facePlane)) continue; // rays can only project forwards, so if plane is behind origin, ray will never intersect
 
-			FVector possiblePointOfContact;
-
-			if (doOnce)
+			float projection = FVector::DotProduct(facePlane.normal, centroidToCentroidRay.direction);
+			if (abs(projection) > 0.0001f) // make sure projection is not zero, this means the ray is perpendicular to the plane and never intersects
 			{
-				for (int k = 0; k < mHitPosition[i].faces.Num(); k++)
-				{
-					Plane facePlane;
-					facePlane.normal = FVector::CrossProduct(mHitPosition[i].faces[k].a.edgeVector, mHitPosition[i].faces[k].b.edgeVector);
-					facePlane.pointOnPlane = mHitPosition[i].faces[k].a.a;
+				centroidToCentroidRay.t = FVector::DotProduct(facePlane.pointOnPlane - centroidToCentroidRay.origin, facePlane.normal) / projection;
+				if (centroidToCentroidRay.t != 0) continue;
 
-					if (IsInFrontOfPlane(centroidToCentroidRay.origin, facePlane)) continue; // rays can only project forwards, so if plane is behind origin, ray will never intersect
+				// we have the possible point of contact
 
-					float projection = FVector::DotProduct(facePlane.normal, centroidToCentroidRay.direction);
-					if (abs(projection) > 0.0001f) // make sure projection is not zero, this means the ray is perpendicular to the plane and never intersects
-					{
-						centroidToCentroidRay.t = FVector::DotProduct(facePlane.pointOnPlane - centroidToCentroidRay.origin, facePlane.normal) / projection;
-						if (centroidToCentroidRay.t != 0) continue;
-
-						// we have the possible point of contact
-
-						possiblePointOfContact = centroidToCentroidRay.origin + (centroidToCentroidRay.direction * centroidToCentroidRay.t);
-					}
-				}
+				intersectionPoint = centroidToCentroidRay.origin + (centroidToCentroidRay.direction * centroidToCentroidRay.t);
+				collisionNormal = facePlane.normal;
 			}
-			
-			doOnce = false;
-
-			for (int k = 0; k < other->mHitPosition[j].faces.Num(); k++)
-			{
-				Plane facePlane;
-				facePlane.normal = FVector::CrossProduct(other->mHitPosition[j].faces[k].a.edgeVector, other->mHitPosition[j].faces[k].b.edgeVector);
-				facePlane.pointOnPlane = other->mHitPosition[j].faces[k].a.a;
-
-				if (IsInFrontOfPlane(centroidToCentroidRay.origin, facePlane)) continue; // rays can only project forwards, so if plane is behind origin, ray will never intersect
-
-				float projection = FVector::DotProduct(facePlane.normal, centroidToCentroidRay.direction);
-				if (abs(projection) > 0.0001f) // make sure projection is not zero, this means the ray is perpendicular to the plane and never intersects
-				{
-					centroidToCentroidRay.t = FVector::DotProduct(facePlane.pointOnPlane - centroidToCentroidRay.origin, facePlane.normal) / projection;
-					if (centroidToCentroidRay.t != 0) continue;
-
-					// we have the possible point of contact
-
-					FVector pointOfContact = centroidToCentroidRay.origin + (centroidToCentroidRay.direction * centroidToCentroidRay.t);
-					float distance = abs(FVector::Distance(pointOfContact, possiblePointOfContact));
-
-					if (distance < smallestDistance) {
-						smallestDistance = distance;
-						intersectionPoint = pointOfContact;
-						collisionNormal = facePlane.normal;
-					}
-				}
-			}
-
-			// project velocity onto collision normal for relative velocity
-			FVector centroidToPointOfCollision = intersectionPoint - mHitPosition[i].centroid;
-			relativeVelocity = (FVector::DotProduct(mVelocity, collisionNormal) / mVelocity.Size()) *  centroidToPointOfCollision;
-
-			float impulseMag;
-
-			impulseMag = ((-(1 + mCoefficientOfRestitution) * (relativeVelocity * collisionNormal)) /
-				((collisionNormal * collisionNormal) * (1 / mMass + 1 / other->mMass))).Size();
-
-			mVelocity += (impulseMag * collisionNormal) / mMass;
-			other->mVelocity -= (impulseMag * collisionNormal) / other->mMass;
 		}
+
+		//for (int k = 0; k < mHitPosition[i + 1].faces.Num(); k++)
+		//{
+		//	Plane facePlane;
+		//	facePlane.normal = FVector::CrossProduct(other->mHitPosition[j].faces[k].a.edgeVector, other->mHitPosition[j].faces[k].b.edgeVector);
+		//	facePlane.pointOnPlane = other->mHitPosition[j].faces[k].a.a;
+
+		//	if (IsInFrontOfPlane(centroidToCentroidRay.origin, facePlane)) continue; // rays can only project forwards, so if plane is behind origin, ray will never intersect
+
+		//	float projection = FVector::DotProduct(facePlane.normal, centroidToCentroidRay.direction);
+		//	if (abs(projection) > 0.0001f) // make sure projection is not zero, this means the ray is perpendicular to the plane and never intersects
+		//	{
+		//		centroidToCentroidRay.t = FVector::DotProduct(facePlane.pointOnPlane - centroidToCentroidRay.origin, facePlane.normal) / projection;
+		//		if (centroidToCentroidRay.t != 0) continue;
+
+		//		// we have the possible point of contact
+
+		//		FVector pointOfContact = centroidToCentroidRay.origin + (centroidToCentroidRay.direction * centroidToCentroidRay.t);
+		//		float distance = abs(FVector::Distance(pointOfContact, possiblePointOfContact));
+
+		//		if (distance < smallestDistance) {
+		//			smallestDistance = distance;
+		//			intersectionPoint = pointOfContact;
+		//			collisionNormal = facePlane.normal;
+		//		}
+		//	}
+		//}
+
+		// project velocity onto collision normal for relative velocity
+
+		FVector centroidToPointOfCollision = intersectionPoint - mHitPosition[i].centroid;
+		relativeVelocity = (FVector::DotProduct(mVelocity, collisionNormal) / mVelocity.Size()) * centroidToPointOfCollision;
+
+		float impulseMag;
+
+		impulseMag = ((-(1 + mCoefficientOfRestitution) * (relativeVelocity * collisionNormal)) /
+			((collisionNormal * collisionNormal) * (1 / mMass + 1 / other->mMass))).Size();
+
+		mVelocity += (impulseMag * collisionNormal) / mMass;
+		other->mVelocity -= (impulseMag * collisionNormal) / other->mMass;
 	}
 }
+
 
 Quaternion APhysicsObject::FindCollisionResponseRotation()
 {

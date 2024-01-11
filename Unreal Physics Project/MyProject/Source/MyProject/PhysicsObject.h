@@ -168,6 +168,46 @@ struct ConvexHull {
 struct Plane {
 	FVector normal;
 	FVector pointOnPlane;
+
+	friend bool operator==(Plane& self, Plane& other)
+	{
+		if (self.normal == other.normal) {
+			if (self.pointOnPlane == other.pointOnPlane) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	friend bool operator==(Plane& self, const Plane& other)
+	{
+		if (self.normal == other.normal) {
+			if (self.pointOnPlane == other.pointOnPlane) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	friend bool operator==(const Plane& self, Plane& other)
+	{
+		if (self.normal == other.normal) {
+			if (self.pointOnPlane == other.pointOnPlane) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	friend bool operator==(const Plane& self, const Plane& other)
+	{
+		if (self.normal == other.normal) {
+			if (self.pointOnPlane == other.pointOnPlane) {
+				return true;
+			}
+		}
+		return false;
+	}
 };
 
 struct Tensor {
