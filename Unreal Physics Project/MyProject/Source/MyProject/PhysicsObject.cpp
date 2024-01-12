@@ -1221,14 +1221,16 @@ void APhysicsObject::FindCollisionResponseMove(APhysicsObject* other)
 		// find positions on hull closest to the other
 		// depending on distance this could be the point of collision
 		Ray centroidToCentroidRay;
-		centroidToCentroidRay.direction = (mHitPosition[i + 1].centroid - mHitPosition[i].centroid).GetSafeNormal();
-		centroidToCentroidRay.origin = mHitPosition[i].centroid;
+		centroidToCentroidRay.direction = ((mHitPosition[i + 1].centroid + mHitPosition[i + 1].addWorldOffset) - 
+			(mHitPosition[i].centroid + mHitPosition[i].addWorldOffset)).GetSafeNormal();
+		centroidToCentroidRay.origin = mHitPosition[i].centroid + mHitPosition[i].addWorldOffset;
 
 		for (int k = 0; k < mHitPosition[i].faces.Num(); k++)
 		{
 			Plane facePlane;
 			facePlane.normal = FVector::CrossProduct(mHitPosition[i].faces[k].a.edgeVector, mHitPosition[i].faces[k].b.edgeVector);
-			facePlane.pointOnPlane = mHitPosition[i].faces[k].a.a;
+			facePlane.normal.Normalize();
+			facePlane.pointOnPlane = mHitPosition[i].faces[k].a.a + mHitPosition[i].addWorldOffset;
 
 			if (IsInFrontOfPlane(centroidToCentroidRay.origin, facePlane)) continue; // rays can only project forwards, so if plane is behind origin, ray will never intersect
 
@@ -1274,8 +1276,8 @@ void APhysicsObject::FindCollisionResponseMove(APhysicsObject* other)
 
 		// project velocity onto collision normal for relative velocity
 
-		FVector centroidToPointOfCollision = intersectionPoint - mHitPosition[i].centroid;
-		relativeVelocity = (FVector::DotProduct(mVelocity, collisionNormal) / mVelocity.Size()) * centroidToPointOfCollision;
+		FVector centroidToPointOfCollision = intersectionPoint - (mHitPosition[i].centroid + mHitPosition[i].addWorldOffset);
+		relativeVelocity = mVelocity - other->mVelocity;
 
 		float impulseMag;
 
