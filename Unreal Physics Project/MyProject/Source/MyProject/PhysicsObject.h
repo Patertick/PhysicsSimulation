@@ -123,6 +123,9 @@ struct ConvexHull {
 	TArray<Face> faces; // faces that make up convex hull of point sets
 	TArray<FVector> points; // all vertices that make up the hull
 	FVector centroid; // centre of hull
+	FVector startPos;
+	FVector offsetFromStart{ 0.0f, 0.0f, 0.0f };
+	FVector addWorldOffset;
 
 	friend bool operator==(ConvexHull& self, ConvexHull& other)
 	{

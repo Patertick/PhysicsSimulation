@@ -44,6 +44,11 @@ void APhysicsObject::BeginPlay()
 
 	DecomposeMesh(mVertexPositions);
 	
+	for (int i = 0; i < mMeshes.Num(); i++)
+	{
+		mMeshes[i].startPos = GetActorLocation();
+		mMeshes[i].offsetFromStart = GetActorLocation();
+	}
 
 	GenerateSphere();
 
@@ -516,7 +521,7 @@ ConvexHull APhysicsObject::CreateConvexHull(const TArray<FVector> &points)
 	centrePoint = centrePoint / newHull.points.Num();
 
 	newHull.centroid = centrePoint;
-	
+
 	return newHull;
 }
 
@@ -833,13 +838,15 @@ void APhysicsObject::Tick(float DeltaTime)
 	StepSimulation(DeltaTime);
 	//mNormalForce = { 0.0f, 0.0f ,0.0f };
 	//mNormalForce += CheckForPlaneCollision();
+
+	GEngine->AddOnScreenDebugMessage(1000, 15.0f, FColor::Yellow, mMeshes[0].addWorldOffset.ToString() + " Offset");
+
 	TArray<AActor*> FoundActors;
 	UGameplayStatics::GetAllActorsOfClass(GetWorld(), APhysicsObject::StaticClass(), FoundActors);
 	for (int i = 0; i < FoundActors.Num(); i++)
 	{
-		if (Cast<APhysicsObject>(FoundActors[i]) == nullptr) continue;
-		
-		// initial bounding sphere check
+		if (Cast<APhysicsObject>(FoundActors[i]) == nullptr || FoundActors[i] == this) continue;
+		//initial bounding sphere check
 		if (SphereOnSphereCheck(Cast<APhysicsObject>(FoundActors[i])->GetSphere())) {
 			// if bounding spheres are intersecting check for intersecting hulls
 			mHitPosition = SeparatingAxisTest(Cast<APhysicsObject>(FoundActors[i])->mMeshes);
@@ -922,6 +929,11 @@ void APhysicsObject::StepSimulation(float deltaTime)
 
 	SetActorLocation(mDisplacement);
 	mSphere.center = mDisplacement;
+	for (int i = 0; i < mMeshes.Num(); i++)
+	{
+		mMeshes[i].offsetFromStart += (Vnew* dt * 100);
+		mMeshes[i].addWorldOffset = mMeshes[i].offsetFromStart - mMeshes[i].startPos;
+	}
 
 	// rotation
 
@@ -1044,48 +1056,68 @@ TArray<ConvexHull> APhysicsObject::SeparatingAxisTest(const TArray<ConvexHull>& 
 		{
 			for (int p = 0; p < testPlanes.Num(); p++)
 			{
-
 				// use normal as perpendicular axis to plane (as its the normal)
 
 				// go through points to find supporting point that is farthest distance from centroid along perpendicular axis
 
+				int32 indexFarthestPoint = 0;
 				FVector farthestPoint{ 0.0f, 0.0f, 0.0f };
+				FVector centroidA{ 0.0f, 0.0f, 0.0f };
 				for (int k = 0; k < mMeshes[i].points.Num(); k++)
 				{
 					// calculate projected vector onto plane normal
-					FVector projectedVector = testPlanes[p].normal * (FVector::DotProduct(mMeshes[i].points[k], testPlanes[p].normal) /
+					centroidA += (mMeshes[i].points[k] + mMeshes[i].addWorldOffset);
+					FVector projectedVector = testPlanes[p].normal * (FVector::DotProduct((mMeshes[i].points[k] + mMeshes[i].addWorldOffset), testPlanes[p].normal) /
 						FVector::DotProduct(testPlanes[p].normal, testPlanes[p].normal));
-					if (!projectedVector.IsNearlyZero() && projectedVector.Size() > farthestPoint.Size()) farthestPoint = projectedVector;
+					if (!projectedVector.IsNearlyZero() && projectedVector.Size() > farthestPoint.Size()) { 
+						farthestPoint = projectedVector;
+						indexFarthestPoint = k;
+					}
 				}
+				centroidA = centroidA / mMeshes[i].points.Num();
 				// projected centroid onto normal
-				FVector projectedCentroidA = testPlanes[p].normal * (FVector::DotProduct(mMeshes[i].centroid, testPlanes[p].normal) /
+				FVector projectedCentroidA = testPlanes[p].normal * (FVector::DotProduct(centroidA, testPlanes[p].normal) /
 					FVector::DotProduct(testPlanes[p].normal, testPlanes[p].normal));
 
 				// first radius is the distance between projected centroid and farthest point
+				//FVector rA = mMeshes[i].points[indexFarthestPoint] - centroidA;
+				//rA = testPlanes[p].normal* (FVector::DotProduct(rA, testPlanes[p].normal) /
+				//	FVector::DotProduct(testPlanes[p].normal, testPlanes[p].normal));
+
 				float rA = FVector::Distance(projectedCentroidA, farthestPoint);
 
 				farthestPoint = { 0.0f, 0.0f, 0.0f };
+				FVector centroidB = { 0.0f, 0.0f,0.0f };
 				for (int k = 0; k < other[j].points.Num(); k++)
 				{
-					FVector projectedVector = testPlanes[p].normal * (FVector::DotProduct(other[j].points[k], testPlanes[p].normal) /
+					centroidB += (other[j].points[k] + other[j].addWorldOffset);
+					FVector projectedVector = testPlanes[p].normal * (FVector::DotProduct((other[j].points[k] + other[j].addWorldOffset), testPlanes[p].normal) /
 						FVector::DotProduct(testPlanes[p].normal, testPlanes[p].normal));
-					if (!projectedVector.IsNearlyZero() && projectedVector.Size() > farthestPoint.Size()) farthestPoint = projectedVector;
+					if (!projectedVector.IsNearlyZero() && projectedVector.Size() > farthestPoint.Size()) {
+						farthestPoint = projectedVector;
+						indexFarthestPoint = k;
+					}
 				}
-				FVector projectedCentroidB = testPlanes[p].normal * (FVector::DotProduct(other[j].centroid, testPlanes[p].normal) /
+				centroidB = centroidB / other[j].points.Num();
+				FVector projectedCentroidB = testPlanes[p].normal * (FVector::DotProduct(centroidB, testPlanes[p].normal) /
 					FVector::DotProduct(testPlanes[p].normal, testPlanes[p].normal));
+
+				//FVector rB = other[j].points[indexFarthestPoint] - centroidB;
+				//rB = testPlanes[p].normal * (FVector::DotProduct(rB, testPlanes[p].normal) /
+				//	FVector::DotProduct(testPlanes[p].normal, testPlanes[p].normal));
 
 				float rB = FVector::Distance(projectedCentroidB, farthestPoint);
 
-				float projectedCentroidDistance = FVector::Distance(projectedCentroidA, projectedCentroidB);
+				FVector centroidToCentroid = centroidB - centroidA;
 
-				FString tempString = FString::SanitizeFloat(rA + rB) + " Radius sum";
-				GEngine->AddOnScreenDebugMessage(101, 15.0f, FColor::Yellow, *tempString);
-				tempString = FString::SanitizeFloat(projectedCentroidDistance) + " Distance";
-				GEngine->AddOnScreenDebugMessage(201, 15.0f, FColor::Yellow, *tempString);
+				FVector projectedCentroidToCentroid = testPlanes[p].normal * (FVector::DotProduct(centroidToCentroid, testPlanes[p].normal) /
+					FVector::DotProduct(testPlanes[p].normal, testPlanes[p].normal));
+
 				// objects are not disjoint
-				if (rA + rB >= projectedCentroidDistance) {
+
+				if (rA + rB >= centroidToCentroid.Size()) {
 					// store overlapping hulls as pairs
-					GEngine->AddOnScreenDebugMessage(202, 15.0f, FColor::Yellow, "COLLISION SAT");
+					GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Yellow, "COLLISION SAT");
 					overlappingHulls.Add(mMeshes[i]);
 					overlappingHulls.Add(other[j]);
 				}
@@ -1097,7 +1129,7 @@ TArray<ConvexHull> APhysicsObject::SeparatingAxisTest(const TArray<ConvexHull>& 
 
 bool APhysicsObject::SphereOnSphereCheck(const Sphere& other)
 {
-	float squareDistance = FVector::DistSquared(mSphere.center, other.center);
+	float squareDistance = FVector::DistSquared(other.center, mSphere.center);
 	float squareRadiiSum = (mSphere.radius + other.radius) * (mSphere.radius + other.radius);
 
 	if (squareRadiiSum >= squareDistance) return true; // collision
