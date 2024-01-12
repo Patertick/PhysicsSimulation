@@ -368,7 +368,7 @@ private:
 
 	float mDefaultTimeStep{ 0.5f };
 
-	bool Hit{ false };
+	bool mHit{ false };
 
 protected:
 	// Called when the game starts or when spawned
@@ -409,6 +409,8 @@ protected:
 
 	void FindCollisionResponseMove(APhysicsObject* other);
 	Quaternion FindCollisionResponseRotation();
+	void Hit();
+
 
 	// Simulation functions
 	FVector FindGravityForce();

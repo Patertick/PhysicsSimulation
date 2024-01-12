@@ -426,7 +426,7 @@ ConvexHull APhysicsObject::CreateConvexHull(const TArray<FVector> &points)
 	for (int i = 0; i < extremalPoints.Num(); i++)
 	{
 		// add extremal points to hull (these points will definitely be a part of the final hull)
-		newHull.points.Add(extremalPoints[i]);
+		if(!newHull.points.Contains(extremalPoints[i])) newHull.points.Add(extremalPoints[i]);
 	}
 	newHull.faces = ConstructFaces(newHull.points);
 
@@ -486,7 +486,7 @@ ConvexHull APhysicsObject::CreateConvexHull(const TArray<FVector> &points)
 		for (int i = 0; i < extremalPoints.Num(); i++)
 		{
 			if (extremalPoints[i] == newHull.faces[i].a.b) continue;
-			newHull.points.Add(extremalPoints[i]);
+			if (!newHull.points.Contains(extremalPoints[i])) newHull.points.Add(extremalPoints[i]);
 		}
 
 		// there are no extremal points to add, hence we have a completed hull
@@ -841,6 +841,7 @@ void APhysicsObject::Tick(float DeltaTime)
 
 	GEngine->AddOnScreenDebugMessage(1000, 15.0f, FColor::Yellow, mMeshes[0].addWorldOffset.ToString() + " Offset");
 
+	if (mHit) return;
 	TArray<AActor*> FoundActors;
 	UGameplayStatics::GetAllActorsOfClass(GetWorld(), APhysicsObject::StaticClass(), FoundActors);
 	for (int i = 0; i < FoundActors.Num(); i++)
@@ -1211,6 +1212,9 @@ FVector APhysicsObject::QuaternionToEuler(Quaternion quaternion)
 
 void APhysicsObject::FindCollisionResponseMove(APhysicsObject* other)
 {
+	TArray<APhysicsObject*> objectsResolved;
+
+
 	// add velocity for each hit position
 	for (int i = 0; i < mHitPosition.Num(); i += 2)
 	{
@@ -1229,6 +1233,8 @@ void APhysicsObject::FindCollisionResponseMove(APhysicsObject* other)
 		{
 			Plane facePlane;
 			facePlane.normal = FVector::CrossProduct(mHitPosition[i].faces[k].a.edgeVector, mHitPosition[i].faces[k].b.edgeVector);
+			FString tempString = facePlane.normal.ToString() + " normal loop";
+			GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Blue, *tempString);
 			facePlane.normal.Normalize();
 			facePlane.pointOnPlane = mHitPosition[i].faces[k].a.a + mHitPosition[i].addWorldOffset;
 
@@ -1238,10 +1244,10 @@ void APhysicsObject::FindCollisionResponseMove(APhysicsObject* other)
 			if (abs(projection) > 0.0001f) // make sure projection is not zero, this means the ray is perpendicular to the plane and never intersects
 			{
 				centroidToCentroidRay.t = FVector::DotProduct(facePlane.pointOnPlane - centroidToCentroidRay.origin, facePlane.normal) / projection;
-				if (centroidToCentroidRay.t != 0) continue;
+				//if (centroidToCentroidRay.t != 0) continue;
 
 				// we have the possible point of contact
-
+				GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Blue, "CALL");
 				intersectionPoint = centroidToCentroidRay.origin + (centroidToCentroidRay.direction * centroidToCentroidRay.t);
 				collisionNormal = facePlane.normal;
 			}
@@ -1277,23 +1283,71 @@ void APhysicsObject::FindCollisionResponseMove(APhysicsObject* other)
 		// project velocity onto collision normal for relative velocity
 
 		FVector centroidToPointOfCollision = intersectionPoint - (mHitPosition[i].centroid + mHitPosition[i].addWorldOffset);
-		relativeVelocity = mVelocity - other->mVelocity;
+		relativeVelocity = other->mVelocity - mVelocity;
 
-		float impulseMag;
+		FVector impulseMagSelf = 2 * collisionNormal *
+			(FVector::DotProduct(collisionNormal, -relativeVelocity.GetSafeNormal())) + relativeVelocity.GetSafeNormal();
+		impulseMagSelf = centroidToPointOfCollision.GetSafeNormal() * mVelocity.Size() * mCoefficientOfRestitution;
+		FVector impulseMagOther = 2 * collisionNormal *
+			(FVector::DotProduct(collisionNormal, -mVelocity.GetSafeNormal())) + mVelocity.GetSafeNormal();;
+		impulseMagOther = impulseMagOther * mVelocity.Size() * other->mCoefficientOfRestitution;
+		// ensure no divisions by zero are occuring
+		/*if (((collisionNormal.X * collisionNormal.X) * (1 / mMass + 1 / other->mMass)) != 0.0f) {
+			impulseMag.X = (-(1 + mCoefficientOfRestitution) * (relativeVelocity.X * collisionNormal.X)) /
+				((collisionNormal.X * collisionNormal.X) * (1 / mMass + 1 / other->mMass));
+		}
 
-		impulseMag = ((-(1 + mCoefficientOfRestitution) * (relativeVelocity * collisionNormal)) /
-			((collisionNormal * collisionNormal) * (1 / mMass + 1 / other->mMass))).Size();
+		if (((collisionNormal.Y * collisionNormal.Y) * (1 / mMass + 1 / other->mMass)) != 0.0f) {
+			impulseMag.Y = (-(1 + mCoefficientOfRestitution) * (relativeVelocity.Y * collisionNormal.Y)) /
+				((collisionNormal.Y * collisionNormal.Y) * (1 / mMass + 1 / other->mMass));
+		}
 
-		mVelocity += (impulseMag * collisionNormal) / mMass;
-		other->mVelocity -= (impulseMag * collisionNormal) / other->mMass;
+		if (((collisionNormal.Z * collisionNormal.Z) * (1 / mMass + 1 / other->mMass)) != 0.0f) {
+			impulseMag.Z = (-(1 + mCoefficientOfRestitution) * (relativeVelocity.Z * collisionNormal.Z)) /
+				((collisionNormal.Z * collisionNormal.Z) * (1 / mMass + 1 / other->mMass));
+		}*/
+		// only resolve collisions for each object once (no double impulses)
+		GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Blue, impulseMagOther.ToString() + " Self Velocity");
+
+		if (objectsResolved.Contains(this)) {
+			if (objectsResolved.Contains(other)) continue;
+			else { 
+				other->mVelocity -= impulseMagSelf / other->mMass;
+				objectsResolved.Add(other);
+			}
+		}
+		else {
+			if (!objectsResolved.Contains(other)){
+				other->mVelocity -= impulseMagSelf / other->mMass;
+				objectsResolved.Add(other);
+			}
+			mVelocity += impulseMagSelf / mMass;
+			objectsResolved.Add(this);
+		}
+	}
+	GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Blue, mVelocity.ToString() + " Self New Velocity");
+	for (int i = 0; i < objectsResolved.Num(); i++)
+	{
+		objectsResolved[i]->Hit();
 	}
 }
 
 
 Quaternion APhysicsObject::FindCollisionResponseRotation()
 {
-
+	
 
 	return Quaternion();
+}
+
+void APhysicsObject::Hit()
+{
+	// toggle
+	if (mHit) mHit = false;
+	else mHit = true;
+	// call function again in half a second
+	FTimerHandle UnusedHandle;
+	GetWorldTimerManager().SetTimer(
+		UnusedHandle, this, &APhysicsObject::Hit, 0.5f, false);
 }
 
