@@ -1304,16 +1304,49 @@ void APhysicsObject::FindCollisionResponseMove(APhysicsObject* other)
 		// only resolve collisions for each object once (no double impulses)
 
 		FVector angleModifier;
-		angleModifier.X = FVector::DotProduct(FVector(0.0f, -1.0f, 0.0f), centroidToPointOfCollision);
-		angleModifier.Y = FVector::DotProduct(FVector(0.0f, 0.0f, -1.0f), centroidToPointOfCollision);
-		angleModifier.Z = FVector::DotProduct(FVector(-1.0f, 0.0f, 0.0f), centroidToPointOfCollision);
+		angleModifier.X = FVector::DotProduct(FVector(0.0f, 1.0f, 0.0f), centroidToPointOfCollision);
+		//angleModifier.X *= (centroidToPointOfCollision.Y / (1 / centroidToPointOfCollision.Size()));
+		angleModifier.Y = FVector::DotProduct(FVector(0.0f, 0.0f, 1.0f), centroidToPointOfCollision);
+		//angleModifier.Y *= (centroidToPointOfCollision.Z / (1 / centroidToPointOfCollision.Size()));
+		angleModifier.Z = FVector::DotProduct(FVector(1.0f, 0.0f, 0.0f), centroidToPointOfCollision);
+		//angleModifier.Z *= (centroidToPointOfCollision.X / (1 / centroidToPointOfCollision.Size()));
+
+		if (angleModifier.X > -0.001f && angleModifier.X < 0.001f)
+		{
+			if (angleModifier.Y > -0.001f && angleModifier.Y < 0.001f)
+			{
+				angleModifier.Z = 0;
+			}
+			if (angleModifier.Z > -0.001f && angleModifier.Z < 0.001f)
+			{
+				angleModifier.Y = 0;
+			}
+		}
+		else {
+			if (angleModifier.Y > -0.001f && angleModifier.Y < 0.001f)
+			{
+				angleModifier.X = 0;
+			}
+			if (angleModifier.Z > -0.001f && angleModifier.Z < 0.001f)
+			{
+				angleModifier.X = 0;
+			}
+		}
+
+		//angleModifier *= 1 / centroidToPointOfCollision.Size();
+
+		//if (angleModifier.X != 0.0f) angleModifier.X = 1 / angleModifier.X;
+		//if (angleModifier.Y != 0.0f) angleModifier.Y = 1 / angleModifier.Y;
+		//if (angleModifier.Z != 0.0f) angleModifier.Z = 1 / angleModifier.Z;
+
+		//angleModifier *= mVelocity.Size();
 
 		if (objectsResolved.Contains(this)) {
 			if (objectsResolved.Contains(other)) continue;
 			else { 
 				other->mVelocity -= impulseMagSelf * other->mCoefficientOfRestitution / other->mMass;
 				other->mAngularVelocity -= Tensor::MatVertMultiply(mIntertialTensor, impulseMagSelf).GetSafeNormal() *
-					angleModifier * other->mCoefficientOfRestitution / other->mMass;
+					-angleModifier * other->mCoefficientOfRestitution / other->mMass;
 				objectsResolved.Add(other);
 			}
 		}
@@ -1321,12 +1354,12 @@ void APhysicsObject::FindCollisionResponseMove(APhysicsObject* other)
 			if (!objectsResolved.Contains(other)){
 				other->mVelocity -= impulseMagSelf * other->mCoefficientOfRestitution / other->mMass;
 				other->mAngularVelocity -= Tensor::MatVertMultiply(mIntertialTensor, impulseMagSelf).GetSafeNormal() *
-					angleModifier * other->mCoefficientOfRestitution / other->mMass;
+					-angleModifier * other->mCoefficientOfRestitution / other->mMass;
 				objectsResolved.Add(other);
 			}
 			mVelocity += impulseMagSelf * mCoefficientOfRestitution / mMass;
 			mAngularVelocity += Tensor::MatVertMultiply(mIntertialTensor, impulseMagSelf).GetSafeNormal() *
-				-angleModifier * mCoefficientOfRestitution / mMass;
+				angleModifier * mCoefficientOfRestitution / mMass;
 			objectsResolved.Add(this);
 		}
 
@@ -1359,6 +1392,6 @@ void APhysicsObject::Hit()
 	// call function again in half a second
 	FTimerHandle UnusedHandle;
 	GetWorldTimerManager().SetTimer(
-		UnusedHandle, this, &APhysicsObject::Hit, 0.5f, false);
+		UnusedHandle, this, &APhysicsObject::Hit, 0.1f, false);
 }
 
