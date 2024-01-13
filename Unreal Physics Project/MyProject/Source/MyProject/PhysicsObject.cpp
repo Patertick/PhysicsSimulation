@@ -52,6 +52,7 @@ void APhysicsObject::BeginPlay()
 
 	GenerateSphere();
 
+	mIntertialTensor = FindInertialTensor();
 	// Find a predicted sphere from generated sphere
 	mPredictedSphere.center = mSphere.center;
 	mPredictedSphere.radius = mSphere.radius;
@@ -73,13 +74,8 @@ void APhysicsObject::BeginPlay()
 	mVolume = (4 / 3) * PI * (calcRadius * calcRadius * calcRadius);
 	mDensity = mMass / mVolume;
 	mSurfaceArea = 4 * PI * (calcRadius * calcRadius);
-	FString tempString = "Volume: " + FString::SanitizeFloat(mVolume);
-	GEngine->AddOnScreenDebugMessage(1, 15.0f, FColor::Yellow, *tempString);
-	tempString = "Density: " + FString::SanitizeFloat(mDensity);
-	GEngine->AddOnScreenDebugMessage(2, 15.0f, FColor::Yellow, *tempString);
-	tempString = "SA: " + FString::SanitizeFloat(mSurfaceArea);
-	GEngine->AddOnScreenDebugMessage(3, 15.0f, FColor::Yellow, *tempString);
 
+	mOrientation = EulerToQuaternion(GetActorRotation().Euler());
 
 	mDefaultTimeStep = mTimeStep;
 }
@@ -168,7 +164,10 @@ Tensor APhysicsObject::FindInertialTensor()
 	// set up i values for inertia tensor
 	for (int i = 0; i < mMeshes.Num(); i++)
 	{
-		Tensor localInertia = FindClosestMatchingTensor(mMeshes[i]);
+		Tensor localInertia;
+		localInertia.tensor[0] = (2 / 5) * mMass * (mSphere.radius * mSphere.radius);
+		localInertia.tensor[4] = (2 / 5) * mMass * (mSphere.radius * mSphere.radius);
+		localInertia.tensor[8] = (2 / 5) * mMass * (mSphere.radius * mSphere.radius);
 
 		FVector localGravCoords = mMeshes[i].centroid - mCentreOfGravity; // vector from the centre of gravity to the centroid of the mesh
 
@@ -202,7 +201,7 @@ Tensor APhysicsObject::FindClosestMatchingTensor(ConvexHull convexHull)
 	for (int i = 0; i < convexHull.faces.Num(); i ++)
 	{
 		TArray<Face> sharingFaces;
-		for (int j = 1; j < convexHull.faces.Num(); j++)
+		for (int j = 0; j < convexHull.faces.Num(); j++)
 		{
 			if (i == j) continue; // dont test faces against themselves
 			// create an array of all faces that share an edge with faces[i]
@@ -940,23 +939,22 @@ void APhysicsObject::StepSimulation(float deltaTime)
 
 	float mag;
 
-	FMatrix interiaMat;
-	interiaMat.SetColumn(0, FVector(mIntertialTensor.tensor[0], mIntertialTensor.tensor[3], mIntertialTensor.tensor[6]));
-	interiaMat.SetColumn(1, FVector(mIntertialTensor.tensor[1], mIntertialTensor.tensor[4], mIntertialTensor.tensor[7]));
-	interiaMat.SetColumn(2, FVector(mIntertialTensor.tensor[2], mIntertialTensor.tensor[5], mIntertialTensor.tensor[8]));
+	
 
-	mAngularVelocity += interiaMat.Inverse().TransformVector((mMoments - (mAngularVelocity ^ (interiaMat.TransformVector(mAngularVelocity)))) * (0.5f * dt));
-		
+	//mAngularVelocity += interiaMat.Inverse().TransformVector((mMoments - (mAngularVelocity ^ (interiaMat.TransformVector(mAngularVelocity)))) * (0.5f * dt));
+	// find angular acceleration and resultant angular velocity
+	//A = mMoments / mMass;
+	
+	//mAngularVelocity = A * dt;
+	//mAngularVelocity = interiaMat.TransformVector(mAngularVelocity);
 
-	Quaternion q;
-	q.QuatVecMultiply(mOrientation, mAngularVelocity * (0.5f * dt));
-	mOrientation = mOrientation + q;
+	mOrientation = mOrientation + mOrientation.QuatVecMultiply(mOrientation, mAngularVelocity * (0.5f * dt));
 
-	mag = q.Magnitude();
-	if (mag != 0) q = q / mag;
+	mag = mOrientation.Magnitude();
+	if (mag != 0) mOrientation = mOrientation / mag;
 
 	FRotator u; // find euler angles
-	u = QuaternionToEuler(q).ToOrientationRotator();
+	u = FRotator::MakeFromEuler(QuaternionToEuler(mOrientation));
 	SetActorRotation(u);
 
 }
@@ -1234,7 +1232,7 @@ void APhysicsObject::FindCollisionResponseMove(APhysicsObject* other)
 			Plane facePlane;
 			facePlane.normal = FVector::CrossProduct(mHitPosition[i].faces[k].a.edgeVector, mHitPosition[i].faces[k].b.edgeVector);
 			FString tempString = facePlane.normal.ToString() + " normal loop";
-			GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Blue, *tempString);
+			//GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Blue, *tempString);
 			facePlane.normal.Normalize();
 			facePlane.pointOnPlane = mHitPosition[i].faces[k].a.a + mHitPosition[i].addWorldOffset;
 
@@ -1247,7 +1245,7 @@ void APhysicsObject::FindCollisionResponseMove(APhysicsObject* other)
 				//if (centroidToCentroidRay.t != 0) continue;
 
 				// we have the possible point of contact
-				GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Blue, "CALL");
+				
 				intersectionPoint = centroidToCentroidRay.origin + (centroidToCentroidRay.direction * centroidToCentroidRay.t);
 				collisionNormal = facePlane.normal;
 			}
@@ -1287,10 +1285,7 @@ void APhysicsObject::FindCollisionResponseMove(APhysicsObject* other)
 
 		FVector impulseMagSelf = 2 * collisionNormal *
 			(FVector::DotProduct(collisionNormal, -relativeVelocity.GetSafeNormal())) + relativeVelocity.GetSafeNormal();
-		impulseMagSelf = centroidToPointOfCollision.GetSafeNormal() * mVelocity.Size() * mCoefficientOfRestitution;
-		FVector impulseMagOther = 2 * collisionNormal *
-			(FVector::DotProduct(collisionNormal, -mVelocity.GetSafeNormal())) + mVelocity.GetSafeNormal();;
-		impulseMagOther = impulseMagOther * mVelocity.Size() * other->mCoefficientOfRestitution;
+		impulseMagSelf = centroidToPointOfCollision.GetSafeNormal() * mVelocity.Size();
 		// ensure no divisions by zero are occuring
 		/*if (((collisionNormal.X * collisionNormal.X) * (1 / mMass + 1 / other->mMass)) != 0.0f) {
 			impulseMag.X = (-(1 + mCoefficientOfRestitution) * (relativeVelocity.X * collisionNormal.X)) /
@@ -1307,25 +1302,41 @@ void APhysicsObject::FindCollisionResponseMove(APhysicsObject* other)
 				((collisionNormal.Z * collisionNormal.Z) * (1 / mMass + 1 / other->mMass));
 		}*/
 		// only resolve collisions for each object once (no double impulses)
-		GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Blue, impulseMagOther.ToString() + " Self Velocity");
+
+		FVector angleModifier;
+		angleModifier.X = FVector::DotProduct(FVector(0.0f, -1.0f, 0.0f), centroidToPointOfCollision);
+		angleModifier.Y = FVector::DotProduct(FVector(0.0f, 0.0f, -1.0f), centroidToPointOfCollision);
+		angleModifier.Z = FVector::DotProduct(FVector(-1.0f, 0.0f, 0.0f), centroidToPointOfCollision);
 
 		if (objectsResolved.Contains(this)) {
 			if (objectsResolved.Contains(other)) continue;
 			else { 
-				other->mVelocity -= impulseMagSelf / other->mMass;
+				other->mVelocity -= impulseMagSelf * other->mCoefficientOfRestitution / other->mMass;
+				other->mAngularVelocity -= Tensor::MatVertMultiply(mIntertialTensor, impulseMagSelf).GetSafeNormal() *
+					angleModifier * other->mCoefficientOfRestitution / other->mMass;
 				objectsResolved.Add(other);
 			}
 		}
 		else {
 			if (!objectsResolved.Contains(other)){
-				other->mVelocity -= impulseMagSelf / other->mMass;
+				other->mVelocity -= impulseMagSelf * other->mCoefficientOfRestitution / other->mMass;
+				other->mAngularVelocity -= Tensor::MatVertMultiply(mIntertialTensor, impulseMagSelf).GetSafeNormal() *
+					angleModifier * other->mCoefficientOfRestitution / other->mMass;
 				objectsResolved.Add(other);
 			}
-			mVelocity += impulseMagSelf / mMass;
+			mVelocity += impulseMagSelf * mCoefficientOfRestitution / mMass;
+			mAngularVelocity += Tensor::MatVertMultiply(mIntertialTensor, impulseMagSelf).GetSafeNormal() *
+				-angleModifier * mCoefficientOfRestitution / mMass;
 			objectsResolved.Add(this);
 		}
+
+		// Rotation response
+
+		// Add to moments using point of collision and the angular difference between centroid and point of collision
+
+		
+
 	}
-	GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Blue, mVelocity.ToString() + " Self New Velocity");
 	for (int i = 0; i < objectsResolved.Num(); i++)
 	{
 		objectsResolved[i]->Hit();

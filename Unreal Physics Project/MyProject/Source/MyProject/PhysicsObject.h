@@ -215,6 +215,14 @@ struct Plane {
 
 struct Tensor {
 	float tensor[9]; // 3x3 matrix	
+	static inline FVector MatVertMultiply(Tensor t, FVector v)
+	{
+		FVector vector;
+		vector.X = t.tensor[0] * v.X + t.tensor[1] * v.Y + t.tensor[2] * v.Z;
+		vector.Y = t.tensor[3] * v.X + t.tensor[4] * v.Y + t.tensor[5] * v.Z;
+		vector.Z = t.tensor[6] * v.X + t.tensor[7] * v.Y + t.tensor[8] * v.Z;
+		return vector;
+	}
 };
 
 struct Quaternion {
